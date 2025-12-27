@@ -128,26 +128,27 @@ def init_session_state():
         'exporter': None,
         'session_manager': None,
     }
-    
+
     for key, default in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default
-    
+
     # Initialize components
     if st.session_state.coordinator is None:
         st.session_state.coordinator = get_coordinator()
         try:
-            st.session_state.coordinator.initialize()
+            asyncio.run(st.session_state.coordinator.initialize())
         except Exception as e:
             st.warning(f"Agent initialization pending: {e}")
-    
+
     if st.session_state.databricks is None:
         st.session_state.databricks = get_databricks_connector()
-    
+
     if st.session_state.exporter is None:
         st.session_state.exporter = ECDDExporter()
-        st.session_state.exporter.set_databricks_connector(st.session_state.databricks)
-    
+        st.session_state.exporter.set_databricks_connector(
+            st.session_state.databricks)
+
     if st.session_state.session_manager is None:
         st.session_state.session_manager = get_session_manager()
 
@@ -159,7 +160,7 @@ def init_session_state():
 def get_demo_client_profile() -> ClientProfile:
     """Get a demo client profile for testing."""
     from .schemas import IdentityProfile, PEPStatus, AdverseNewsItem
-    
+
     return ClientProfile(
         customer_id="DEMO-001",
         customer_name="Alexandra Chen",
@@ -175,7 +176,8 @@ def get_demo_client_profile() -> ClientProfile:
             is_etb=True
         ),
         pep_status=[
-            PEPStatus(is_pep=True, pep_type="Family Member", position_title="Spouse of Minister")
+            PEPStatus(is_pep=True, pep_type="Family Member",
+                      position_title="Spouse of Minister")
         ],
         adverse_news=[
             AdverseNewsItem(
@@ -197,32 +199,33 @@ def page_home():
     st.markdown("## 📋 ECDD Questionnaire System")
     st.markdown("Enhanced Client Due Diligence questionnaire-based assessment.")
     st.markdown('</div>', unsafe_allow_html=True)
-    
+
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         st.markdown('<div class="info-card">', unsafe_allow_html=True)
         st.markdown("### Select Client Profile")
-        
+
         # Profile source selection
         source = st.radio(
             "Profile Source",
             ["Demo Profile", "From Databricks", "Manual Entry"],
             horizontal=True
         )
-        
+
         if source == "Demo Profile":
             st.info("Using demo client profile: Alexandra Chen (DEMO-001)")
             if st.button("▶️ Start Questionnaire with Demo Profile", use_container_width=True):
                 profile = get_demo_client_profile()
                 _start_session(profile)
-        
+
         elif source == "From Databricks":
             search_term = st.text_input("🔍 Search by name or ID")
-            
+
             if search_term:
                 try:
-                    profiles = st.session_state.databricks.search_profiles(search_term)
+                    profiles = st.session_state.databricks.search_profiles(
+                        search_term)
                     if profiles:
                         selected = st.selectbox(
                             "Select profile",
@@ -236,14 +239,14 @@ def page_home():
                 except Exception as e:
                     st.error(f"Databricks connection error: {e}")
                     st.info("Try using Demo Profile instead")
-        
+
         else:  # Manual Entry
             with st.form("manual_profile"):
                 customer_id = st.text_input("Customer ID*", "")
                 customer_name = st.text_input("Customer Name*", "")
                 nationality = st.text_input("Nationality", "")
                 residence = st.text_input("Residence Country", "")
-                
+
                 if st.form_submit_button("▶️ Start Questionnaire"):
                     if customer_id and customer_name:
                         from .schemas import IdentityProfile
@@ -260,13 +263,13 @@ def page_home():
                         _start_session(profile)
                     else:
                         st.error("Customer ID and Name are required")
-        
+
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown('<div class="info-card">', unsafe_allow_html=True)
         st.markdown("### Recent Sessions")
-        
+
         sessions = st.session_state.session_manager.list_sessions(limit=5)
         if sessions:
             for s in sessions:
@@ -277,7 +280,7 @@ def page_home():
                     'reports_generated': 'completed',
                     'approved': 'completed',
                 }.get(s['status'], 'pending')
-                
+
                 st.markdown(f"""
                 <div style="padding: 8px; margin: 5px 0; background: #f7fafc; border-radius: 5px;">
                     <strong>{s['customer_name']}</strong><br>
@@ -285,12 +288,12 @@ def page_home():
                     <span class="status-badge status-{status_class}">{s['status']}</span></small>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
                 if st.button(f"Resume", key=f"resume_{s['session_id'][:8]}"):
                     _resume_session(s['session_id'])
         else:
             st.info("No recent sessions")
-        
+
         st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -298,16 +301,18 @@ def _start_session(profile: ClientProfile):
     """Start a new questionnaire session."""
     with st.spinner("Generating questionnaire..."):
         try:
-            session = st.session_state.coordinator.create_session(profile)
+            session = asyncio.run(
+                st.session_state.coordinator.create_session(profile))
             st.session_state.session_id = session.session_id
             st.session_state.client_profile = profile
             st.session_state.questionnaire = session.questionnaire
             st.session_state.responses = {}
             st.session_state.page = 'questionnaire'
-            
+
             # Save to session manager
-            st.session_state.session_manager.create_session(profile, session.questionnaire)
-            
+            st.session_state.session_manager.create_session(
+                profile, session.questionnaire)
+
             st.rerun()
         except Exception as e:
             st.error(f"Error starting session: {e}")
@@ -319,17 +324,18 @@ def _resume_session(session_id: str):
     session = st.session_state.session_manager.get_session(session_id)
     if session:
         st.session_state.session_id = session.session_id
-        st.session_state.client_profile = ClientProfile(**session.client_profile) if session.client_profile else None
+        st.session_state.client_profile = ClientProfile(
+            **session.client_profile) if session.client_profile else None
         st.session_state.questionnaire = session.questionnaire
         st.session_state.responses = session.responses or {}
         st.session_state.ecdd_assessment = session.ecdd_assessment
         st.session_state.document_checklist = session.document_checklist
-        
+
         if session.status in [SessionStatus.REPORTS_GENERATED, SessionStatus.PENDING_REVIEW]:
             st.session_state.page = 'review'
         else:
             st.session_state.page = 'questionnaire'
-        
+
         st.rerun()
 
 
@@ -345,24 +351,26 @@ def page_questionnaire():
             st.session_state.page = 'home'
             st.rerun()
         return
-    
+
     questionnaire = st.session_state.questionnaire
-    
+
     # Header
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown(f"## 📋 ECDD Questionnaire")
-        st.markdown(f"**Client:** {questionnaire.customer_name} ({questionnaire.customer_id})")
+        st.markdown(
+            f"**Client:** {questionnaire.customer_name} ({questionnaire.customer_id})")
     with col2:
         if st.button("🏠 Home"):
             st.session_state.page = 'home'
             st.rerun()
-    
+
     # Progress
     total_qs = questionnaire.get_total_questions()
     answered = len([r for r in st.session_state.responses.values() if r])
-    st.progress(answered / total_qs if total_qs > 0 else 0, f"Progress: {answered}/{total_qs}")
-    
+    st.progress(answered / total_qs if total_qs > 0 else 0,
+                f"Progress: {answered}/{total_qs}")
+
     # Sections
     with st.form("questionnaire_form"):
         for section in questionnaire.sections:
@@ -371,20 +379,20 @@ def page_questionnaire():
                 {section.section_icon} {section.section_title}
             </div>
             """, unsafe_allow_html=True)
-            
+
             if section.section_description:
                 st.caption(section.section_description)
-            
+
             for q in section.questions:
                 _render_question(q)
-        
+
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             submitted = st.form_submit_button(
                 "✅ Submit & Generate Assessment",
                 use_container_width=True
             )
-        
+
         if submitted:
             _submit_questionnaire()
 
@@ -393,11 +401,11 @@ def _render_question(q):
     """Render a single question field."""
     key = f"q_{q.field_id}"
     current = st.session_state.responses.get(q.field_id, "")
-    
+
     label = q.question_text
     if q.required:
         label += " *"
-    
+
     if q.question_type == QuestionType.TEXT:
         val = st.text_input(label, value=current, key=key, help=q.help_text)
     elif q.question_type == QuestionType.TEXTAREA:
@@ -405,26 +413,31 @@ def _render_question(q):
     elif q.question_type == QuestionType.DROPDOWN:
         options = [""] + q.options
         idx = options.index(current) if current in options else 0
-        val = st.selectbox(label, options, index=idx, key=key, help=q.help_text)
+        val = st.selectbox(label, options, index=idx,
+                           key=key, help=q.help_text)
     elif q.question_type == QuestionType.MULTIPLE_CHOICE:
         val = st.radio(label, q.options, key=key, help=q.help_text)
     elif q.question_type == QuestionType.CHECKBOX:
         current_list = current if isinstance(current, list) else []
-        val = st.multiselect(label, q.options, default=current_list, key=key, help=q.help_text)
+        val = st.multiselect(
+            label, q.options, default=current_list, key=key, help=q.help_text)
     elif q.question_type == QuestionType.YES_NO:
         options = ["", "Yes", "No"]
         idx = options.index(current) if current in options else 0
-        val = st.selectbox(label, options, index=idx, key=key, help=q.help_text)
+        val = st.selectbox(label, options, index=idx,
+                           key=key, help=q.help_text)
     elif q.question_type == QuestionType.DATE:
         val = st.date_input(label, key=key, help=q.help_text)
         val = str(val) if val else ""
     elif q.question_type == QuestionType.NUMBER:
-        val = st.number_input(label, value=float(current) if current else 0.0, key=key, help=q.help_text)
+        val = st.number_input(label, value=float(
+            current) if current else 0.0, key=key, help=q.help_text)
     elif q.question_type == QuestionType.CURRENCY:
-        val = st.number_input(label, value=float(current) if current else 0.0, key=key, help=q.help_text)
+        val = st.number_input(label, value=float(
+            current) if current else 0.0, key=key, help=q.help_text)
     else:
         val = st.text_input(label, value=current, key=key, help=q.help_text)
-    
+
     st.session_state.responses[q.field_id] = val
 
 
@@ -434,16 +447,16 @@ def _submit_questionnaire():
         try:
             session_id = st.session_state.session_id
             responses = st.session_state.responses
-            
+
             # Generate assessment via coordinator
-            assessment, checklist = st.session_state.coordinator.submit_responses(
-                session_id,
-                responses
+            assessment, checklist = asyncio.run(
+                st.session_state.coordinator.submit_responses(
+                    session_id, responses)
             )
-            
+
             st.session_state.ecdd_assessment = assessment
             st.session_state.document_checklist = checklist
-            
+
             # Update session manager
             st.session_state.session_manager.update_session(
                 session_id,
@@ -453,11 +466,11 @@ def _submit_questionnaire():
                 document_checklist=checklist,
                 save_immediately=True
             )
-            
+
             st.session_state.page = 'review'
             st.success("Assessment generated successfully!")
             st.rerun()
-            
+
         except Exception as e:
             st.error(f"Error generating assessment: {e}")
             traceback.print_exc()
@@ -475,48 +488,50 @@ def page_review():
             st.session_state.page = 'home'
             st.rerun()
         return
-    
+
     assessment = st.session_state.ecdd_assessment
     checklist = st.session_state.document_checklist
-    
+
     # Header
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown("## 🔍 Stakeholder Review")
-        st.markdown(f"**Client:** {st.session_state.questionnaire.customer_name}")
+        st.markdown(
+            f"**Client:** {st.session_state.questionnaire.customer_name}")
     with col2:
         if st.button("🏠 Home"):
             st.session_state.page = 'home'
             st.rerun()
-    
+
     # Tabs - added History and Follow-up
-    tabs = st.tabs(["📊 Summary", "📋 Assessment", "📄 Documents", "🔄 Follow-up", "📜 History", "💬 Query", "📤 Export"])
-    
+    tabs = st.tabs(["📊 Summary", "📋 Assessment", "📄 Documents",
+                   "🔄 Follow-up", "📜 History", "💬 Query", "📤 Export"])
+
     with tabs[0]:  # Summary
         _render_summary(assessment)
-    
+
     with tabs[1]:  # Assessment
         _render_assessment(assessment)
-    
+
     with tabs[2]:  # Documents
         _render_checklist(checklist)
-    
+
     with tabs[3]:  # Follow-up
         _render_followup_tab()
-    
+
     with tabs[4]:  # History
         _render_history_tab()
-    
+
     with tabs[5]:  # Query
         _render_query_tab()
-    
+
     with tabs[6]:  # Export
         _render_export_tab()
-    
+
     # Review decision
     st.markdown("---")
     st.markdown("### Review Decision")
-    
+
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("✅ Approve", use_container_width=True, type="primary"):
@@ -532,7 +547,7 @@ def page_review():
 def _render_summary(assessment: ECDDAssessment):
     """Render assessment summary."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    
+
     # Risk rating
     risk_class = f"risk-{assessment.overall_risk_rating.value}"
     st.markdown(f"""
@@ -544,10 +559,10 @@ def _render_summary(assessment: ECDDAssessment):
         <p style="margin-top: 10px;">Score: {assessment.risk_score:.2f}</p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Client type
     st.markdown(f"**Client Type:** {assessment.client_type}")
-    
+
     # Compliance flags
     st.markdown("**Compliance Flags:**")
     flags = assessment.compliance_flags
@@ -558,21 +573,22 @@ def _render_summary(assessment: ECDDAssessment):
         ("High-Risk Jurisdiction", flags.high_risk_jurisdiction),
         ("Watchlist", flags.watchlist_hit),
     ]
-    
+
     cols = st.columns(5)
     for i, (name, status) in enumerate(flag_items):
         with cols[i]:
             indicator = "⚠️" if status else "✓"
             color = "red" if status else "green"
-            st.markdown(f"<span style='color:{color}'>{indicator} {name}</span>", unsafe_allow_html=True)
-    
+            st.markdown(
+                f"<span style='color:{color}'>{indicator} {name}</span>", unsafe_allow_html=True)
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
 def _render_assessment(assessment: ECDDAssessment):
     """Render full assessment details."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    
+
     # Risk factors
     if assessment.risk_factors:
         st.markdown("### Risk Factors")
@@ -580,18 +596,18 @@ def _render_assessment(assessment: ECDDAssessment):
             with st.expander(f"{rf.factor_name} - {rf.level.value.upper()}"):
                 st.markdown(f"**Score:** {rf.score:.2f}")
                 st.markdown(f"**Justification:** {rf.justification}")
-    
+
     # Report text
     if assessment.report_text:
         st.markdown("### Detailed Assessment")
         st.markdown(assessment.report_text)
-    
+
     # Recommendations
     if assessment.recommendations:
         st.markdown("### Recommendations")
         for i, rec in enumerate(assessment.recommendations, 1):
             st.markdown(f"{i}. {rec}")
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -599,7 +615,7 @@ def _render_checklist(checklist: DocumentChecklist):
     """Render document checklist."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     st.markdown("### Required Documents")
-    
+
     categories = [
         ("Identity Documents", checklist.identity_documents),
         ("Source of Wealth", checklist.source_of_wealth_documents),
@@ -607,7 +623,7 @@ def _render_checklist(checklist: DocumentChecklist):
         ("Compliance", checklist.compliance_documents),
         ("Additional", checklist.additional_documents),
     ]
-    
+
     for title, docs in categories:
         if docs:
             st.markdown(f"**{title}:**")
@@ -621,7 +637,7 @@ def _render_checklist(checklist: DocumentChecklist):
                 )
                 if doc.special_instructions:
                     st.caption(f"   ↳ {doc.special_instructions}")
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -629,29 +645,31 @@ def _render_followup_tab():
     """Render follow-up questions tab for requesting additional information."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     st.markdown("### Request Follow-up Information")
-    st.caption("Generate additional questions if the assessment needs more information.")
-    
+    st.caption(
+        "Generate additional questions if the assessment needs more information.")
+
     feedback = st.text_area(
         "What additional information is needed?",
         placeholder="e.g., Need more details about source of wealth from property sales...",
         key="followup_feedback"
     )
-    
+
     if st.button("🔄 Generate Follow-up Questions", use_container_width=True):
         if feedback:
             with st.spinner("Generating follow-up questions..."):
                 try:
-                    followup_session_id, followup_q = st.session_state.coordinator.generate_followup_and_continue(
-                        st.session_state.session_id,
-                        feedback
+                    followup_session_id, followup_q = asyncio.run(
+                        st.session_state.coordinator.generate_followup_and_continue(
+                            st.session_state.session_id, feedback
+                        )
                     )
-                    
+
                     # Save the parent session
                     st.session_state.session_manager.save_checkpoint(
-                        st.session_state.session_id, 
+                        st.session_state.session_id,
                         "followup_requested"
                     )
-                    
+
                     # Switch to new follow-up session
                     st.session_state.session_id = followup_session_id
                     st.session_state.questionnaire = followup_q
@@ -659,20 +677,23 @@ def _render_followup_tab():
                     st.session_state.ecdd_assessment = None
                     st.session_state.document_checklist = None
                     st.session_state.page = 'questionnaire'
-                    
-                    st.success(f"Generated {followup_q.get_total_questions()} follow-up questions")
+
+                    st.success(
+                        f"Generated {followup_q.get_total_questions()} follow-up questions")
                     st.rerun()
-                    
+
                 except Exception as e:
                     st.error(f"Error generating follow-up: {e}")
         else:
             st.warning("Please describe what additional information is needed.")
-    
+
     # Show if this is a follow-up session
-    session = st.session_state.coordinator.get_session(st.session_state.session_id)
+    session = st.session_state.coordinator.get_session(
+        st.session_state.session_id)
     if session and session.is_followup:
-        st.info(f"ℹ️ This is a follow-up session (parent: {session.parent_session_id[:8]}...)")
-    
+        st.info(
+            f"ℹ️ This is a follow-up session (parent: {session.parent_session_id[:8]}...)")
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -680,94 +701,110 @@ def _render_history_tab():
     """Render customer ECDD history tab for periodic reviews."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     st.markdown("### Customer ECDD History")
-    st.caption("View past assessments for this customer to support periodic reviews.")
-    
+    st.caption(
+        "View past assessments for this customer to support periodic reviews.")
+
     customer_id = st.session_state.questionnaire.customer_id
-    
+
     # Get history from both sources
-    local_history = st.session_state.session_manager.get_customer_history(customer_id)
-    
+    local_history = st.session_state.session_manager.get_customer_history(
+        customer_id)
+
     if local_history:
-        st.markdown(f"**Found {len(local_history)} assessment(s) for this customer:**")
-        
+        st.markdown(
+            f"**Found {len(local_history)} assessment(s) for this customer:**")
+
         for i, session in enumerate(local_history, 1):
             is_current = session.session_id == st.session_state.session_id
-            
+
             with st.expander(
                 f"{'📌 CURRENT - ' if is_current else ''}{session.created_at[:10]} - {session.status.value.replace('_', ' ').title()}",
                 expanded=is_current
             ):
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
-                    st.markdown(f"**Session ID:** `{session.session_id[:8]}...`")
+                    st.markdown(
+                        f"**Session ID:** `{session.session_id[:8]}...`")
                     st.markdown(f"**Status:** {session.status.value}")
                     st.markdown(f"**Created:** {session.created_at[:16]}")
                     if session.is_followup:
-                        st.markdown(f"**Follow-up of:** `{session.parent_session_id[:8]}...`")
-                
+                        st.markdown(
+                            f"**Follow-up of:** `{session.parent_session_id[:8]}...`")
+
                 with col2:
                     if session.ecdd_assessment:
                         assessment = session.ecdd_assessment
                         risk_emoji = {
                             "low": "🟢", "medium": "🟡", "high": "🔴", "critical": "🔴"
                         }.get(assessment.overall_risk_rating.value, "⚪")
-                        
-                        st.markdown(f"**Risk Rating:** {risk_emoji} {assessment.overall_risk_rating.value.upper()}")
-                        st.markdown(f"**Risk Score:** {assessment.risk_score:.2f}")
-                        
+
+                        st.markdown(
+                            f"**Risk Rating:** {risk_emoji} {assessment.overall_risk_rating.value.upper()}")
+                        st.markdown(
+                            f"**Risk Score:** {assessment.risk_score:.2f}")
+
                         # Show compliance flags
                         flags = assessment.compliance_flags
                         active_flags = []
-                        if flags.pep: active_flags.append("PEP")
-                        if flags.sanctions: active_flags.append("Sanctions")
-                        if flags.adverse_media: active_flags.append("Adverse Media")
-                        
+                        if flags.pep:
+                            active_flags.append("PEP")
+                        if flags.sanctions:
+                            active_flags.append("Sanctions")
+                        if flags.adverse_media:
+                            active_flags.append("Adverse Media")
+
                         if active_flags:
-                            st.markdown(f"**Flags:** ⚠️ {', '.join(active_flags)}")
+                            st.markdown(
+                                f"**Flags:** ⚠️ {', '.join(active_flags)}")
                         else:
                             st.markdown("**Flags:** ✓ None")
-                
+
                 # Compare button
                 if not is_current and session.ecdd_assessment:
                     if st.button(f"📊 Compare with Current", key=f"compare_{session.session_id[:8]}"):
                         try:
-                            comparison = st.session_state.coordinator.compare_assessments(
-                                st.session_state.session_id,
-                                session.session_id
+                            comparison = asyncio.run(
+                                st.session_state.coordinator.compare_assessments(
+                                    st.session_state.session_id, session.session_id
+                                )
                             )
-                            
+
                             st.markdown("#### Comparison Results")
-                            
+
                             # Risk change
                             if comparison["risk_rating_change"]["changed"]:
-                                st.warning(f"⚠️ Risk rating changed: {comparison['risk_rating_change']['previous']} → {comparison['risk_rating_change']['current']}")
+                                st.warning(
+                                    f"⚠️ Risk rating changed: {comparison['risk_rating_change']['previous']} → {comparison['risk_rating_change']['current']}")
                             else:
                                 st.success("✓ Risk rating unchanged")
-                            
+
                             # New concerns
                             if comparison["new_concerns"]:
-                                st.error(f"🆕 New concerns: {', '.join(comparison['new_concerns'])}")
-                            
+                                st.error(
+                                    f"🆕 New concerns: {', '.join(comparison['new_concerns'])}")
+
                             # Resolved concerns
                             if comparison["resolved_concerns"]:
-                                st.success(f"✓ Resolved: {', '.join(comparison['resolved_concerns'])}")
-                            
+                                st.success(
+                                    f"✓ Resolved: {', '.join(comparison['resolved_concerns'])}")
+
                         except Exception as e:
                             st.error(f"Comparison failed: {e}")
-                
+
                 # Load button for non-current sessions
                 if not is_current:
                     if st.button(f"📂 Load This Session", key=f"load_{session.session_id[:8]}"):
                         _resume_session(session.session_id)
     else:
         st.info("No previous assessments found for this customer.")
-    
+
     # Try Databricks for additional history
     st.markdown("---")
     if st.button("🔍 Search Databricks History"):
         try:
-            db_history = st.session_state.databricks.get_customer_ecdd_history(customer_id)
+            db_history = st.session_state.databricks.get_customer_ecdd_history(
+                customer_id)
             if db_history:
                 st.success(f"Found {len(db_history)} record(s) in Databricks")
                 for record in db_history:
@@ -777,7 +814,7 @@ def _render_history_tab():
                 st.info("No additional records in Databricks")
         except Exception as e:
             st.warning(f"Databricks search unavailable: {e}")
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -785,24 +822,25 @@ def _render_query_tab():
     """Render stakeholder query tab."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     st.markdown("### Ask Questions About This Assessment")
-    
+
     query = st.text_area(
         "Enter your question",
         placeholder="e.g., What is the basis for the PEP classification?"
     )
-    
+
     if st.button("🔍 Get Answer") and query:
         with st.spinner("Analyzing..."):
             try:
-                answer = st.session_state.coordinator.answer_query(
-                    st.session_state.session_id,
-                    query
+                answer = asyncio.run(
+                    st.session_state.coordinator.answer_query(
+                        st.session_state.session_id, query
+                    )
                 )
                 st.markdown("**Answer:**")
                 st.markdown(answer)
             except Exception as e:
                 st.error(f"Error: {e}")
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -810,27 +848,27 @@ def _render_export_tab():
     """Render export options."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     st.markdown("### Export Reports")
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         if st.button("📄 Export ECDD Assessment PDF", use_container_width=True):
             _export_assessment_pdf()
-        
+
         if st.button("📋 Export Document Checklist PDF", use_container_width=True):
             _export_checklist_pdf()
-    
+
     with col2:
         if st.button("📝 Export Questionnaire (Filled)", use_container_width=True):
             _export_questionnaire_filled()
-        
+
         if st.button("📝 Export Questionnaire (Blank)", use_container_width=True):
             _export_questionnaire_blank()
-    
+
     st.markdown("---")
     if st.button("📦 Export All Documents", use_container_width=True, type="primary"):
         _export_all()
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -838,7 +876,8 @@ def _export_assessment_pdf():
     """Export ECDD Assessment PDF."""
     with st.spinner("Generating PDF..."):
         try:
-            session = st.session_state.coordinator.get_session(st.session_state.session_id)
+            session = st.session_state.coordinator.get_session(
+                st.session_state.session_id)
             path = st.session_state.exporter.export_ecdd_assessment(
                 st.session_state.ecdd_assessment,
                 session,
@@ -853,7 +892,8 @@ def _export_checklist_pdf():
     """Export checklist PDF."""
     with st.spinner("Generating PDF..."):
         try:
-            session = st.session_state.coordinator.get_session(st.session_state.session_id)
+            session = st.session_state.coordinator.get_session(
+                st.session_state.session_id)
             path = st.session_state.exporter.export_document_checklist(
                 st.session_state.document_checklist,
                 session,
@@ -894,9 +934,11 @@ def _export_all():
     """Export all documents."""
     with st.spinner("Generating all documents..."):
         try:
-            session = st.session_state.coordinator.get_session(st.session_state.session_id)
-            paths = st.session_state.exporter.export_all(session, save_to_volumes=True)
-            
+            session = st.session_state.coordinator.get_session(
+                st.session_state.session_id)
+            paths = st.session_state.exporter.export_all(
+                session, save_to_volumes=True)
+
             st.success("All documents exported:")
             for name, path in paths.items():
                 st.markdown(f"- {name}: `{path}`")
@@ -907,33 +949,38 @@ def _export_all():
 def _complete_review(decision: str):
     """Complete the review with a decision."""
     try:
-        st.session_state.coordinator.complete_review(
-            st.session_state.session_id,
-            decision,
-            reviewed_by="Stakeholder"
+        asyncio.run(
+            st.session_state.coordinator.complete_review(
+                st.session_state.session_id, decision, reviewed_by="Stakeholder"
+            )
         )
-        
+
         st.session_state.session_manager.update_session(
             st.session_state.session_id,
-            status=SessionStatus.APPROVED if decision == "approved" else 
-                   SessionStatus.ESCALATED if decision == "escalated" else
-                   SessionStatus.REJECTED,
+            status=SessionStatus.APPROVED if decision == "approved" else
+            SessionStatus.ESCALATED if decision == "escalated" else
+            SessionStatus.REJECTED,
             review_decision=decision,
             reviewed_by="Stakeholder",
             save_immediately=True
         )
-        
+
         # Write to Databricks
         try:
-            output = st.session_state.coordinator.get_ecdd_output(st.session_state.session_id)
+            # ASYNC: get output (if async in coordinator)
+            output = asyncio.run(
+                st.session_state.coordinator.get_ecdd_output(
+                    st.session_state.session_id)
+            )
             st.session_state.databricks.write_ecdd_output(output)
-            st.success(f"Review completed: {decision.upper()} - Saved to Databricks")
+            st.success(
+                f"Review completed: {decision.upper()} - Saved to Databricks")
         except Exception as e:
             st.warning(f"Saved locally (Databricks unavailable): {e}")
-        
+
         st.session_state.page = 'home'
         st.rerun()
-        
+
     except Exception as e:
         st.error(f"Error completing review: {e}")
 
@@ -947,32 +994,34 @@ def render_sidebar():
     with st.sidebar:
         st.markdown("## 📋 ECDD System")
         st.markdown("---")
-        
+
         # Navigation
         st.markdown("### Navigation")
-        
+
         if st.button("🏠 Home", use_container_width=True):
             st.session_state.page = 'home'
             st.rerun()
-        
+
         if st.session_state.session_id:
             st.markdown("---")
             st.markdown("### Current Session")
             st.caption(f"ID: {st.session_state.session_id[:8]}...")
-            
+
             if st.session_state.client_profile:
-                st.caption(f"Client: {st.session_state.client_profile.customer_name}")
-        
+                st.caption(
+                    f"Client: {st.session_state.client_profile.customer_name}")
+
         st.markdown("---")
         st.markdown("### System Status")
-        
-        status = st.session_state.coordinator.get_status() if st.session_state.coordinator else {}
-        
+
+        status = st.session_state.coordinator.get_status(
+        ) if st.session_state.coordinator else {}
+
         if status.get('coordinator', {}).get('initialized'):
             st.success("✓ Agents Ready")
         else:
             st.warning("⚠ Agents Pending")
-        
+
         if st.session_state.databricks and st.session_state.databricks.is_connected():
             st.success("✓ Databricks Connected")
         else:
@@ -988,10 +1037,10 @@ def main():
     load_custom_css()
     init_session_state()
     render_sidebar()
-    
+
     # Route to current page
     page = st.session_state.page
-    
+
     if page == 'home':
         page_home()
     elif page == 'questionnaire':
