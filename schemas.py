@@ -91,12 +91,15 @@ class SessionStatus(str, Enum):
     ERROR = "error"
 
 
-class RiskLevel(str, Enum):
-    """Risk classification levels."""
+class ECDDLevel(str, Enum):
+    """ECDD classification levels."""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
+# Alias for backward compatibility
+RiskLevel = ECDDLevel
 
 
 class DocumentPriority(str, Enum):
@@ -318,28 +321,93 @@ class ClientProfile(BaseModel):
         )
     
     def get_summary_for_agent(self) -> str:
-        """Generate a text summary for the AI agent to analyze."""
+        """
+        Generate a comprehensive text summary for the AI agent to analyze.
+        Extracts key client type indicators from raw_data/aml_json.
+        """
         lines = [
             f"Customer: {self.customer_name} (ID: {self.customer_id})",
             f"Nationality: {self.identity.nationality or 'Unknown'}",
             f"Residence: {self.identity.residence_country or 'Unknown'}",
-            f"Risk Segment: {self.identity.risk_segment or 'Unknown'}",
+            f"ECDD Segment: {self.identity.risk_segment or 'Unknown'}",
             f"Existing Customer: {'Yes' if self.identity.is_etb else 'No/Unknown'}",
         ]
         
+        # Extract client type indicators from raw_data
+        raw = self.raw_data or {}
+        aml_json = raw.get("aml_json", {})
+        if isinstance(aml_json, str):
+            import json
+            try:
+                aml_json = json.loads(aml_json)
+            except:
+                aml_json = {}
+        
+        # Look for occupation/employment info in various locations
+        occupation_keys = ["occupation", "profession", "job_title", "employment_type", "client_type"]
+        employment_keys = ["employer", "employer_name", "company", "company_name", "business_name"]
+        income_keys = ["source_of_income", "income_source", "sow", "source_of_wealth"]
+        status_keys = ["employment_status", "status", "client_category", "customer_type"]
+        
+        def find_value(keys, data):
+            for key in keys:
+                if key in data:
+                    return data[key]
+                # Try nested aml_json
+                if isinstance(aml_json, dict) and key in aml_json:
+                    return aml_json[key]
+            return None
+        
+        # Client type / occupation
+        occupation = find_value(occupation_keys, raw)
+        if occupation:
+            lines.append(f"Occupation/Type: {occupation}")
+        
+        # Employment / company
+        employer = find_value(employment_keys, raw)
+        if employer:
+            lines.append(f"Employer/Business: {employer}")
+        
+        # Employment status (helps distinguish employee vs owner)
+        status = find_value(status_keys, raw)
+        if status:
+            lines.append(f"Status: {status}")
+        
+        # Source of income (critical for client type)
+        income = find_value(income_keys, raw)
+        if income:
+            lines.append(f"Income Source: {income}")
+        
+        # Look for business owner indicators
+        business_indicators = ["owns_business", "is_business_owner", "business_ownership", "shareholding"]
+        for key in business_indicators:
+            if key in raw or (isinstance(aml_json, dict) and key in aml_json):
+                val = raw.get(key) or aml_json.get(key)
+                if val:
+                    lines.append(f"Business Owner: Yes")
+                    break
+        
+        # PEP status
         if self.pep_status:
             pep = self.pep_status[0]
             lines.append(f"PEP Status: {'Yes' if pep.is_pep else 'No'}" + 
                         (f" - {pep.pep_type}" if pep.pep_type else ""))
         
+        # Screening results summary
         if self.sanctions:
             lines.append(f"Sanctions Hits: {len(self.sanctions)}")
         
         if self.adverse_news:
             lines.append(f"Adverse News Items: {len(self.adverse_news)}")
         
+        if self.watchlist_hits:
+            lines.append(f"Watchlist Hits: {len(self.watchlist_hits)}")
+        
         if self.relationships:
             lines.append(f"Related Parties: {len(self.relationships)}")
+        
+        if self.accounts:
+            lines.append(f"Accounts: {len(self.accounts)}")
         
         return "\n".join(lines)
 
@@ -407,12 +475,15 @@ class ComplianceFlags(BaseModel):
         extra = "allow"
 
 
-class RiskFactor(BaseModel):
-    """Individual risk factor in the ECDD Assessment."""
+class AssessmentFactor(BaseModel):
+    """Individual assessment factor in the ECDD Assessment."""
     factor_name: str
-    level: RiskLevel = RiskLevel.MEDIUM
+    level: ECDDLevel = ECDDLevel.MEDIUM
     score: float = 0.0
     justification: str = ""
+
+# Alias for backward compatibility
+RiskFactor = AssessmentFactor
 
 
 class ECDDAssessment(BaseModel):
@@ -424,10 +495,10 @@ class ECDDAssessment(BaseModel):
     client_type: str = ""
     client_category: str = ""  # Individual, Corporate, Trust, etc.
     
-    # Risk assessment
-    overall_risk_rating: RiskLevel = RiskLevel.MEDIUM
-    risk_score: float = 0.0
-    risk_factors: List[RiskFactor] = Field(default_factory=list)
+    # ECDD Assessment rating
+    overall_ecdd_rating: ECDDLevel = ECDDLevel.MEDIUM
+    ecdd_score: float = 0.0
+    assessment_factors: List[AssessmentFactor] = Field(default_factory=list)
     
     # Source of wealth/funds
     source_of_wealth: Dict[str, Any] = Field(default_factory=dict)
@@ -549,14 +620,25 @@ class ECDDOutput(BaseModel):
     reviewed_at: Optional[str] = None
     
     def to_delta_row(self) -> Dict[str, Any]:
-        """Convert to dict suitable for Delta Table insertion."""
+        """
+        Convert to dict suitable for Delta Table insertion.
+        Note: Excludes report_text and checklist_text to reduce storage.
+        """
+        # Create assessment JSON without report_text
+        assessment_dict = self.ecdd_assessment.model_dump()
+        assessment_dict.pop("report_text", None)
+        
+        # Create checklist JSON without checklist_text
+        checklist_dict = self.document_checklist.model_dump()
+        checklist_dict.pop("checklist_text", None)
+        
         return {
             "session_id": self.session_id,
             "customer_id": self.customer_id,
             "customer_name": self.customer_name,
-            "compliance_flags": self.compliance_flags.model_dump_json(),
-            "ecdd_assessment": self.ecdd_assessment.model_dump_json(),
-            "document_checklist": self.document_checklist.model_dump_json(),
+            "compliance_flags": json.dumps(self.compliance_flags.model_dump()),
+            "ecdd_assessment": json.dumps(assessment_dict),
+            "document_checklist": json.dumps(checklist_dict),
             "questionnaire_responses": json.dumps(self.questionnaire_responses),
             "status": self.status,
             "created_at": self.created_at,

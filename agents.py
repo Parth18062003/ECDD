@@ -146,7 +146,7 @@ class ECDDAgentCoordinator:
         session.status = SessionStatus.REPORTS_GENERATED
         session.updated_at = datetime.now(timezone.utc).isoformat()
 
-        print(f"Generated assessment for session {session_id}: {assessment.overall_risk_rating.value}")
+        print(f"Generated assessment for session {session_id}: {assessment.overall_ecdd_rating.value}")
         return assessment, checklist
 
     async def get_ecdd_output(self, session_id: str) -> ECDDOutput:
@@ -459,15 +459,15 @@ class ECDDAgentCoordinator:
             "previous_session": previous_session_id,
             "current_date": current.created_at,
             "previous_date": previous.created_at,
-            "risk_rating_change": {
-                "previous": previous_assessment.overall_risk_rating.value,
-                "current": current_assessment.overall_risk_rating.value,
-                "changed": previous_assessment.overall_risk_rating != current_assessment.overall_risk_rating
+            "ecdd_level_change": {
+                "previous": previous_assessment.overall_ecdd_rating.value,
+                "current": current_assessment.overall_ecdd_rating.value,
+                "changed": previous_assessment.overall_ecdd_rating != current_assessment.overall_ecdd_rating
             },
-            "risk_score_change": {
-                "previous": previous_assessment.risk_score,
-                "current": current_assessment.risk_score,
-                "delta": current_assessment.risk_score - previous_assessment.risk_score
+            "ecdd_score_change": {
+                "previous": previous_assessment.ecdd_score,
+                "current": current_assessment.ecdd_score,
+                "delta": current_assessment.ecdd_score - previous_assessment.ecdd_score
             },
             "compliance_flags_changes": {
                 "previous": previous_assessment.compliance_flags.model_dump(),

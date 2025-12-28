@@ -15,9 +15,11 @@ Architecture:
 - session.py: Session management
 - utils.py: Type coercion utilities for robust data handling
 - app.py: Streamlit application
+
+Note: This module uses "ECDD" terminology throughout (no "Risk" terminology).
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __author__ = "ECDD Team"
 
 from .schemas import (
@@ -29,8 +31,12 @@ from .schemas import (
     QuestionnaireSession,
     ECDDOutput,
     SessionStatus,
-    RiskLevel,
+    ECDDLevel,
+    AssessmentFactor,
     DynamicQuestionnaire,
+    # Backward compatibility aliases
+    RiskLevel,
+    RiskFactor,
 )
 
 from .agents import ECDDAgentCoordinator
@@ -69,8 +75,12 @@ __all__ = [
     "QuestionnaireSession",
     "ECDDOutput",
     "SessionStatus",
-    "RiskLevel",
+    "ECDDLevel",
+    "AssessmentFactor",
     "DynamicQuestionnaire",
+    # Backward compatibility
+    "RiskLevel",
+    "RiskFactor",
     # Agents
     "ECDDAgentCoordinator",
     # Infrastructure

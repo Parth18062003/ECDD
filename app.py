@@ -673,23 +673,32 @@ def _render_summary(assessment: ECDDAssessment):
     """Render assessment summary."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     
-    # Risk rating
-    risk_class = f"risk-{assessment.overall_risk_rating.value}"
+    # ECDD Level display
+    level_colors = {
+        "low": "#28a745",
+        "medium": "#f39c12", 
+        "high": "#dc3545",
+        "critical": "#9b2c2c"
+    }
+    level_value = assessment.overall_ecdd_rating.value
+    level_color = level_colors.get(level_value, "#666")
+    
     st.markdown(f"""
     <div style="text-align: center; padding: 20px;">
-        <h2>Overall Risk Rating</h2>
-        <div class="status-badge {risk_class}" style="font-size: 24px; padding: 10px 30px;">
-            {assessment.overall_risk_rating.value.upper()}
+        <h2>ECDD Assessment Level</h2>
+        <div style="display: inline-block; background: {level_color}; color: white; 
+                    font-size: 20px; padding: 12px 40px; border-radius: 4px; font-weight: bold;">
+            {level_value.upper()}
         </div>
-        <p style="margin-top: 10px;">Score: {assessment.risk_score:.2f}</p>
     </div>
     """, unsafe_allow_html=True)
     
     # Client type
-    st.markdown(f"**Client Type:** {assessment.client_type}")
+    if assessment.client_type:
+        st.markdown(f"**Client Type:** {assessment.client_type}")
     
     # Compliance flags
-    st.markdown("**Compliance Flags:**")
+    st.markdown("**Compliance Status:**")
     flags = assessment.compliance_flags
     flag_items = [
         ("PEP", flags.pep),
@@ -713,18 +722,38 @@ def _render_assessment(assessment: ECDDAssessment):
     """Render full assessment details."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     
-    # Risk factors
-    if assessment.risk_factors:
-        st.markdown("### Risk Factors")
-        for rf in assessment.risk_factors:
-            with st.expander(f"{rf.factor_name} - {rf.level.value.upper()}"):
-                st.markdown(f"**Score:** {rf.score:.2f}")
-                st.markdown(f"**Justification:** {rf.justification}")
+    # Source of Wealth Summary
+    if assessment.source_of_wealth:
+        st.markdown("### Source of Wealth")
+        sow = assessment.source_of_wealth
+        if isinstance(sow, dict) and sow.get("summary"):
+            st.markdown(sow["summary"])
+        else:
+            st.info("No source of wealth information provided yet.")
     
-    # Report text
+    # Source of Funds Summary
+    if assessment.source_of_funds:
+        st.markdown("### Source of Funds")
+        sof = assessment.source_of_funds
+        if isinstance(sof, dict) and sof.get("summary"):
+            st.markdown(sof["summary"])
+        else:
+            st.info("No source of funds information provided yet.")
+    
+    # Detailed assessment narrative (cleaned up, no JSON)
     if assessment.report_text:
-        st.markdown("### Detailed Assessment")
-        st.markdown(assessment.report_text)
+        st.markdown("### Assessment Summary")
+        # Clean up report - remove JSON blocks and markdown code fences
+        clean_text = assessment.report_text
+        # Remove JSON code blocks
+        import re
+        clean_text = re.sub(r'```json[\s\S]*?```', '', clean_text)
+        clean_text = re.sub(r'```documents[\s\S]*?```', '', clean_text)
+        clean_text = re.sub(r'```[\s\S]*?```', '', clean_text)
+        clean_text = clean_text.strip()
+        
+        if clean_text:
+            st.markdown(clean_text)
     
     # Recommendations
     if assessment.recommendations:
@@ -732,35 +761,66 @@ def _render_assessment(assessment: ECDDAssessment):
         for i, rec in enumerate(assessment.recommendations, 1):
             st.markdown(f"{i}. {rec}")
     
+    # Required Actions
+    if assessment.required_actions:
+        st.markdown("### Required Actions")
+        for action in assessment.required_actions:
+            st.markdown(f"- {action}")
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 
 def _render_checklist(checklist: DocumentChecklist):
     """Render document checklist."""
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("### Required Documents")
+    st.markdown("### Document Checklist")
     
     categories = [
-        ("Identity Documents", checklist.identity_documents),
-        ("Source of Wealth", checklist.source_of_wealth_documents),
-        ("Source of Funds", checklist.source_of_funds_documents),
-        ("Compliance", checklist.compliance_documents),
-        ("Additional", checklist.additional_documents),
+        ("🆔 Identity Documents", checklist.identity_documents),
+        ("💰 Source of Wealth", checklist.source_of_wealth_documents),
+        ("💵 Source of Funds", checklist.source_of_funds_documents),
+        ("📋 Compliance", checklist.compliance_documents),
+        ("📎 Additional", checklist.additional_documents),
     ]
     
-    for title, docs in categories:
-        if docs:
+    has_docs = any(docs for _, docs in categories)
+    
+    if has_docs:
+        for title, docs in categories:
+            if docs:
+                st.markdown(f"**{title}:**")
+                for doc in docs:
+                    priority_emoji = {"required": "🔴", "recommended": "🟡", "optional": "🟢"}.get(
+                        doc.priority.value, "⚪"
+                    )
+                    st.checkbox(
+                        f"{priority_emoji} {doc.document_name}",
+                        key=f"doc_{hash(doc.document_name)}"
+                    )
+                    if doc.special_instructions:
+                        st.caption(f"   ↳ {doc.special_instructions}")
+    else:
+        # Provide standard documents if none generated
+        st.info("📋 Standard documents required for ECDD:")
+        standard_docs = [
+            ("🆔 Identity Documents", [
+                "Government-issued photo ID (passport/national ID)",
+                "Proof of address (utility bill, bank statement - < 3 months old)"
+            ]),
+            ("💰 Source of Wealth", [
+                "Employment contract or business ownership documents",
+                "Tax returns or financial statements"
+            ]),
+            ("💵 Source of Funds", [
+                "Bank statements (3-6 months)",
+                "Investment portfolio statements"
+            ]),
+        ]
+        
+        for title, docs in standard_docs:
             st.markdown(f"**{title}:**")
             for doc in docs:
-                priority_emoji = {"required": "🔴", "recommended": "🟡", "optional": "🟢"}.get(
-                    doc.priority.value, "⚪"
-                )
-                st.checkbox(
-                    f"{priority_emoji} {doc.document_name}",
-                    key=f"doc_{doc.document_name[:20]}"
-                )
-                if doc.special_instructions:
-                    st.caption(f"   ↳ {doc.special_instructions}")
+                st.checkbox(f"🔴 {doc}", key=f"std_{hash(doc)}")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -850,12 +910,11 @@ def _render_history_tab():
                 with col2:
                     if session.ecdd_assessment:
                         assessment = session.ecdd_assessment
-                        risk_emoji = {
+                        level_emoji = {
                             "low": "🟢", "medium": "🟡", "high": "🔴", "critical": "🔴"
-                        }.get(assessment.overall_risk_rating.value, "⚪")
+                        }.get(assessment.overall_ecdd_rating.value, "⚪")
                         
-                        st.markdown(f"**Risk Rating:** {risk_emoji} {assessment.overall_risk_rating.value.upper()}")
-                        st.markdown(f"**Risk Score:** {assessment.risk_score:.2f}")
+                        st.markdown(f"**ECDD Level:** {level_emoji} {assessment.overall_ecdd_rating.value.upper()}")
                         
                         # Show compliance flags
                         flags = assessment.compliance_flags
@@ -881,11 +940,11 @@ def _render_history_tab():
                             
                             st.markdown("#### Comparison Results")
                             
-                            # Risk change
-                            if comparison["risk_rating_change"]["changed"]:
-                                st.warning(f"⚠️ Risk rating changed: {comparison['risk_rating_change']['previous']} → {comparison['risk_rating_change']['current']}")
+                            # ECDD level change
+                            if comparison["ecdd_level_change"]["changed"]:
+                                st.warning(f"⚠️ ECDD level changed: {comparison['ecdd_level_change']['previous']} → {comparison['ecdd_level_change']['current']}")
                             else:
-                                st.success("✓ Risk rating unchanged")
+                                st.success("✓ ECDD level unchanged")
                             
                             # New concerns
                             if comparison["new_concerns"]:
