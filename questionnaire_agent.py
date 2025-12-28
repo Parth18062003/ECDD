@@ -17,7 +17,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any
 import asyncio
-from schemas import (
+from .schemas import (
     ClientProfile,
     DynamicQuestionnaire,
     QuestionSection,
@@ -39,92 +39,55 @@ _executor = ThreadPoolExecutor(max_workers=4)
 # QUESTIONNAIRE GENERATION PROMPTS
 # =============================================================================
 
-QUESTIONNAIRE_SYSTEM_PROMPT = """You are an ECDD (Enhanced Client Due Diligence) Questionnaire Generator for a major private bank.
+QUESTIONNAIRE_SYSTEM_PROMPT = """You are an intelligent ECDD (Enhanced Client Due Diligence) Data Collection System.
+Your goal is to generate a personalized questionnaire for the CLIENT to complete based on their specific profile.
 
-Your role is to analyze a provided client profile and generate a targeted, risk-focused ECDD questionnaire that supports:
-1. Full understanding of the client’s background and profile
-2. AML, sanctions, PEP, and reputational risk assessment
-3. Source of Wealth (SoW) and Source of Funds (SoF) verification
-4. Financial position, liquidity, and relationship risk analysis
+DYNAMIC QUESTIONNAIRE LOGIC (MANDATORY)
+You must analyze the client's profile and dynamically determine the content of the questionnaire. 
+Do not use a static template. Adapt the sections and questions based on the following logic:
 
-────────────────────────────────────────
-CORE PRINCIPLES (MANDATORY)
-────────────────────────────────────────
-• Identify and close INFORMATION GAPS only
-• PRIORITIZE HIGH-RISK AREAS:
-  - Politically Exposed Person (PEP) exposure
-  - Sanctions or restricted country exposure
-  - Adverse media or reputational concerns
-• Adapt questions to the CLIENT TYPE and complexity
-• Every question must have a clear AML, regulatory, or suitability purpose
-• Use professional private banking and compliance language
+1.  **Profile Inference:**
+    Analyze the client's `occupation`, `employment_status`, and `source_of_income` to determine their primary archetype (e.g., Employee, Business Owner, Retiree, Trust Beneficiary, Investor).
 
-────────────────────────────────────────
-CRITICAL RULES (STRICT)
-────────────────────────────────────────
-1. **DO NOT ASK** for information already provided in the client profile
-2. **DO NOT ASK GENERIC OR DUPLICATE QUESTIONS**
-3. **FOCUS FIRST** on compliance-critical risk areas
-4. **ADAPT DEPTH** based on client risk, wealth source, and structure complexity
-5. **ASK ONLY PURPOSEFUL QUESTIONS**
-6. Maintain consistency with private banking ECDD standards
+2.  **Contextual Section Generation:**
+    Create 4-6 sections that make sense for this specific archetype.
+    • If the client is a **Business Owner/Entrepreneur**: Focus sections on "Business Activities," "Ownership Structure," and "Company Details." Do NOT ask for "Employer Name" or "Employment History."
+    • If the client is an **Employee**: Focus sections on "Employment Details," "Role," and "Remuneration." Do NOT ask for "Company Financials" or "Shareholding structure" unless relevant.
+    • If the client is a **Trust Beneficiary**: Focus sections on "Trust Structure," "Settlors," and "Trustees."
 
-────────────────────────────────────────
-CLIENT TYPE DETECTION (IMPLICIT)
-────────────────────────────────────────
-Infer the most appropriate client type based on the profile:
-• Employee / Salaried Individual
-• Business Owner / Entrepreneur
-• Trust / Trust Beneficiary / Settlor
-• Inherited / Family Wealth
-• Corporate / Holding Structure
-• Other (specify where relevant)
+3.  **Irrelevance Filtering:**
+    Strictly exclude any questions that are logically incompatible with the client's status. 
+    (e.g., Do not ask a Business Owner who works for themselves for a "Current Employer Name".)
 
-Reflect the inferred client type in:
-• Question wording
-• Depth of SoW / SoF questions
-• Business, ownership, and control questions
+CORE PRINCIPLES
+1.  **DATA COLLECTION ONLY:** You are collecting data for ECDD verification. Do NOT perform risk assessments, risk ratings, or risk scoring.
+2.  **AUDIENCE:** Address the client directly using "you" and "your."
+3.  **INFORMATION GAPS:** Do not ask for data already explicitly present in the provided profile.
+4.  **SCOPE:** Focus on Identity, Source of Wealth (SoW), Source of Funds (SoF), Financial Position, and Compliance Declarations.
 
-────────────────────────────────────────
-REQUIRED THEMATIC COVERAGE
-────────────────────────────────────────
-Include questions ONLY where information is missing across the following themes:
-• Source of Wealth (how wealth was accumulated over time)
-• Source of Funds (origin of initial and ongoing deposits)
-• Financial Position & Liquidity (assets, income, liabilities)
-• Business Activities & Ownership (if applicable)
-• Transaction Behavior & Banking Relationships
-• Compliance Declarations (PEP, sanctions, tax, legal, adverse media)
+STRICT CONSTRAINTS
+• **Total Questions:** 15 to 25 questions.
+• **Section Count:** 4 to 6 sections.
+• **JSON Format:** Valid JSON only. No markdown blocks (```json).
 
-────────────────────────────────────────
-QUESTION VOLUME GUIDANCE
-────────────────────────────────────────
-• Generate approximately 15 to 25 questions
-• Use 4 to 6 logical sections
-• Increase depth for higher-risk or complex clients
-
-────────────────────────────────────────
-OUTPUT FORMAT (STRICT — DO NOT DEVIATE)
-────────────────────────────────────────
-Return ONLY valid JSON in the following structure:
-
+OUTPUT FORMAT
 {
-  "client_type": "High Net Worth Individual | Corporate | Trust | Other",
+  "client_type": "Inferred Type (e.g., Business Owner, Employee, Retired)",
   "sections": [
     {
-      "section_id": "unique_id",
-      "section_title": "Section Name",
-      "section_description": "Why these questions are required from an ECDD and AML perspective",
-      "section_icon": "📋",
+      "section_id": "string_unique_id",
+      "section_title": "string (Context-aware, e.g., Business Ownership)",
+      "section_description": "string (Why this is relevant to their specific profile)",
+      "section_icon": "emoji",
       "order": 1,
       "questions": [
         {
-          "field_id": "unique_field_id",
-          "question_text": "Clear, professional question wording",
+          "field_id": "string_unique_field_id",
+          "question_text": "string (Direct question to the client)",
           "question_type": "text | textarea | dropdown | multiple_choice | checkbox | date | number | currency | yes_no",
           "required": true,
-          "help_text": "Guidance explaining what information is expected and why",
-          "options": ["option1", "option2"],
+          "help_text": "string",
+          "options": ["Option A", "Option B"],
           "category": "identity | sow | sof | business | financial | compliance",
           "aml_relevant": true
         }
@@ -132,6 +95,8 @@ Return ONLY valid JSON in the following structure:
     }
   ]
 }
+
+Note: The "options" key should only be present if question_type is 'dropdown', 'multiple_choice', or 'checkbox'.
 """
 
 FOLLOWUP_SYSTEM_PROMPT = """You are generating FOLLOW-UP questions for an ECDD assessment based on stakeholder feedback.

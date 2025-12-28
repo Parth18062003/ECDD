@@ -78,14 +78,14 @@
 
 # class ECDDPDFStyles:
 #     """Professional bank-format PDF styles."""
-
+    
 #     @staticmethod
 #     def get_styles():
 #         if not REPORTLAB_AVAILABLE:
 #             return {}
-
+        
 #         styles = getSampleStyleSheet()
-
+        
 #         # Document title
 #         styles.add(ParagraphStyle(
 #             name='DocTitle',
@@ -96,7 +96,7 @@
 #             alignment=TA_CENTER,
 #             fontName='Helvetica-Bold'
 #         ))
-
+        
 #         # Section header
 #         styles.add(ParagraphStyle(
 #             name='SectionHeader',
@@ -109,7 +109,7 @@
 #             borderWidth=0,
 #             borderPadding=4,
 #         ))
-
+        
 #         # Subsection header
 #         styles.add(ParagraphStyle(
 #             name='SubsectionHeader',
@@ -120,7 +120,7 @@
 #             spaceAfter=4,
 #             fontName='Helvetica-Bold'
 #         ))
-
+        
 #         # Body text
 #         styles.add(ParagraphStyle(
 #             name='BodyText',
@@ -132,7 +132,7 @@
 #             fontName='Helvetica',
 #             alignment=TA_JUSTIFY
 #         ))
-
+        
 #         # Risk rating styles
 #         for level, color in [
 #             ('low', 'success'),
@@ -147,7 +147,7 @@
 #                 textColor=get_color(color),
 #                 fontName='Helvetica-Bold'
 #             ))
-
+        
 #         return styles
 
 
@@ -158,73 +158,73 @@
 # class ECDDExporter:
 #     """
 #     Professional PDF exporter for ECDD documents.
-
+    
 #     Features:
 #     - ECDD Assessment Reports
 #     - Document Checklists
 #     - Questionnaires (filled and empty)
 #     - Integration with Databricks Volumes
 #     """
-
+    
 #     def __init__(self, output_dir: str = "./exports"):
 #         self.output_dir = output_dir
 #         self.styles = ECDDPDFStyles.get_styles() if REPORTLAB_AVAILABLE else {}
 #         os.makedirs(output_dir, exist_ok=True)
 #         self._databricks_connector = None
-
+    
 #     def set_databricks_connector(self, connector):
 #         """Set Databricks connector for Volumes integration."""
 #         self._databricks_connector = connector
-
+    
 #     def _add_page_header(self, canvas, doc):
 #         """Add bank header to each page."""
 #         if not REPORTLAB_AVAILABLE:
 #             return
-
+        
 #         canvas.saveState()
-
+        
 #         # Header bar
 #         canvas.setFillColor(get_color("primary"))
 #         canvas.rect(0, A4[1] - 40, A4[0], 40, fill=True, stroke=False)
-
+        
 #         # Bank name
 #         canvas.setFillColor(colors.white)
 #         canvas.setFont('Helvetica-Bold', 14)
 #         canvas.drawString(30, A4[1] - 25, "ENHANCED CLIENT DUE DILIGENCE")
-
+        
 #         # Classification
 #         canvas.setFont('Helvetica', 8)
 #         canvas.drawRightString(A4[0] - 30, A4[1] - 25, "CONFIDENTIAL - INTERNAL USE ONLY")
-
+        
 #         canvas.restoreState()
-
+    
 #     def _add_page_footer(self, canvas, doc):
 #         """Add footer with page numbers."""
 #         if not REPORTLAB_AVAILABLE:
 #             return
-
+        
 #         canvas.saveState()
-
+        
 #         # Footer line
 #         canvas.setStrokeColor(get_color("border"))
 #         canvas.line(30, 30, A4[0] - 30, 30)
-
+        
 #         # Page number
 #         canvas.setFont('Helvetica', 8)
 #         canvas.setFillColor(get_color("text_secondary"))
 #         canvas.drawCentredString(A4[0] / 2, 15, f"Page {doc.page}")
-
+        
 #         # Timestamp
 #         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 #         canvas.drawRightString(A4[0] - 30, 15, f"Generated: {timestamp}")
-
+        
 #         canvas.restoreState()
-
+    
 #     def _on_page(self, canvas, doc):
 #         """Combined header and footer callback."""
 #         self._add_page_header(canvas, doc)
 #         self._add_page_footer(canvas, doc)
-
+    
 #     def export_ecdd_assessment(
 #         self,
 #         assessment: ECDDAssessment,
@@ -234,23 +234,23 @@
 #     ) -> str:
 #         """
 #         Export ECDD Assessment to professional PDF.
-
+        
 #         Args:
 #             assessment: The ECDD assessment
 #             session: The session data
 #             filename: Optional filename
 #             save_to_volumes: Whether to save to Databricks Volumes
-
+            
 #         Returns:
 #             Path to the generated PDF
 #         """
 #         if not REPORTLAB_AVAILABLE:
 #             logger.error("reportlab not installed. Cannot export PDF.")
 #             return self._export_assessment_as_json(assessment, session, filename)
-
+        
 #         filename = filename or f"ecdd_assessment_{session.session_id[:8]}.pdf"
 #         filepath = os.path.join(self.output_dir, filename)
-
+        
 #         # Create PDF buffer for Volumes
 #         pdf_buffer = io.BytesIO()
 #         doc = SimpleDocTemplate(
@@ -261,30 +261,30 @@
 #             leftMargin=30,
 #             rightMargin=30
 #         )
-
+        
 #         story = []
-
+        
 #         # Title
 #         story.append(Paragraph("ECDD ASSESSMENT REPORT", self.styles['DocTitle']))
 #         story.append(Spacer(1, 10))
-
+        
 #         # Client info box
 #         story.extend(self._render_client_info(session))
 #         story.append(Spacer(1, 15))
-
+        
 #         # Compliance Flags Summary
 #         story.extend(self._render_compliance_flags(assessment.compliance_flags))
 #         story.append(Spacer(1, 15))
-
+        
 #         # Overall Risk Rating
 #         story.extend(self._render_risk_rating(assessment))
 #         story.append(Spacer(1, 15))
-
+        
 #         # Risk Factors
 #         if assessment.risk_factors:
 #             story.extend(self._render_risk_factors(assessment.risk_factors))
 #             story.append(Spacer(1, 15))
-
+        
 #         # Full Report Text
 #         if assessment.report_text:
 #             story.append(Paragraph("DETAILED ASSESSMENT", self.styles['SectionHeader']))
@@ -293,16 +293,16 @@
 #                 if para.strip():
 #                     story.append(Paragraph(para, self.styles['BodyText']))
 #                     story.append(Spacer(1, 6))
-
+        
 #         # Recommendations
 #         if assessment.recommendations:
 #             story.append(Paragraph("RECOMMENDATIONS", self.styles['SectionHeader']))
 #             for i, rec in enumerate(assessment.recommendations, 1):
 #                 story.append(Paragraph(f"{i}. {rec}", self.styles['BodyText']))
-
+        
 #         # Build PDF
 #         doc.build(story, onFirstPage=self._on_page, onLaterPages=self._on_page)
-
+        
 #         # Save to Volumes if connector available
 #         if save_to_volumes and self._databricks_connector:
 #             pdf_buffer.seek(0)
@@ -316,20 +316,20 @@
 #                 logger.info(f"Saved ECDD Assessment to Volumes: {volume_path}")
 #             except Exception as e:
 #                 logger.warning(f"Failed to save to Volumes: {e}")
-
+        
 #         # Also save locally
 #         if save_to_volumes:
 #             pdf_buffer.seek(0)
 #             with open(filepath, 'wb') as f:
 #                 f.write(pdf_buffer.getvalue())
-
+        
 #         logger.info(f"Exported ECDD Assessment: {filepath}")
 #         return filepath
-
+    
 #     def _render_client_info(self, session: QuestionnaireSession) -> List:
 #         """Render client information box."""
 #         elements = []
-
+        
 #         data = [
 #             ["Customer Name:", session.customer_name],
 #             ["Customer ID:", session.customer_id],
@@ -337,7 +337,7 @@
 #             ["Status:", session.status.value.replace("_", " ").title()],
 #             ["Date:", datetime.now(timezone.utc).strftime("%Y-%m-%d")],
 #         ]
-
+        
 #         table = Table(data, colWidths=[120, 300])
 #         table.setStyle(TableStyle([
 #             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
@@ -346,15 +346,15 @@
 #             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
 #             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
 #         ]))
-
+        
 #         elements.append(table)
 #         return elements
-
+    
 #     def _render_compliance_flags(self, flags: ComplianceFlags) -> List:
 #         """Render compliance flags as a summary table."""
 #         elements = []
 #         elements.append(Paragraph("COMPLIANCE FLAGS", self.styles['SectionHeader']))
-
+        
 #         flag_data = [
 #             ("PEP Status", flags.pep),
 #             ("Sanctions", flags.sanctions),
@@ -364,7 +364,7 @@
 #             ("SOW Concerns", flags.source_of_wealth_concerns),
 #             ("SOF Concerns", flags.source_of_funds_concerns),
 #         ]
-
+        
 #         # Create 2-column layout
 #         data = []
 #         for i in range(0, len(flag_data), 2):
@@ -377,43 +377,43 @@
 #                 else:
 #                     row.extend(["", ""])
 #             data.append(row)
-
+        
 #         table = Table(data, colWidths=[100, 60, 100, 60])
 #         table.setStyle(TableStyle([
 #             ('FONTSIZE', (0, 0), (-1, -1), 9),
 #             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
 #         ]))
-
+        
 #         elements.append(table)
 #         return elements
-
+    
 #     def _render_risk_rating(self, assessment: ECDDAssessment) -> List:
 #         """Render overall risk rating."""
 #         elements = []
 #         elements.append(Paragraph("OVERALL RISK RATING", self.styles['SectionHeader']))
-
+        
 #         rating = assessment.overall_risk_rating.value.upper()
 #         style_name = f"Risk{assessment.overall_risk_rating.value.title()}"
 #         style = self.styles.get(style_name, self.styles['BodyText'])
-
+        
 #         elements.append(Paragraph(
 #             f"<b>{rating}</b> (Score: {assessment.risk_score:.2f})",
 #             style
 #         ))
-
+        
 #         if assessment.client_type:
 #             elements.append(Paragraph(
 #                 f"Client Type: {assessment.client_type}",
 #                 self.styles['BodyText']
 #             ))
-
+        
 #         return elements
-
+    
 #     def _render_risk_factors(self, factors) -> List:
 #         """Render risk factors table."""
 #         elements = []
 #         elements.append(Paragraph("RISK FACTORS", self.styles['SectionHeader']))
-
+        
 #         data = [["Factor", "Level", "Score", "Justification"]]
 #         for f in factors:
 #             data.append([
@@ -422,7 +422,7 @@
 #                 f"{f.score:.2f}",
 #                 f.justification[:50] + "..." if len(f.justification) > 50 else f.justification
 #             ])
-
+        
 #         table = Table(data, colWidths=[100, 60, 50, 250])
 #         table.setStyle(TableStyle([
 #             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -433,10 +433,10 @@
 #             ('TOPPADDING', (0, 0), (-1, -1), 4),
 #             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
 #         ]))
-
+        
 #         elements.append(table)
 #         return elements
-
+    
 #     def export_document_checklist(
 #         self,
 #         checklist: DocumentChecklist,
@@ -447,10 +447,10 @@
 #         """Export document checklist to PDF."""
 #         if not REPORTLAB_AVAILABLE:
 #             return self._export_checklist_as_json(checklist, session, filename)
-
+        
 #         filename = filename or f"document_checklist_{session.session_id[:8]}.pdf"
 #         filepath = os.path.join(self.output_dir, filename)
-
+        
 #         pdf_buffer = io.BytesIO()
 #         doc = SimpleDocTemplate(
 #             pdf_buffer if save_to_volumes else filepath,
@@ -458,13 +458,13 @@
 #             topMargin=60,
 #             bottomMargin=50
 #         )
-
+        
 #         story = []
 #         story.append(Paragraph("DOCUMENT CHECKLIST", self.styles['DocTitle']))
 #         story.append(Spacer(1, 10))
 #         story.extend(self._render_client_info(session))
 #         story.append(Spacer(1, 15))
-
+        
 #         # Render each category
 #         categories = [
 #             ("Identity Documents", checklist.identity_documents),
@@ -473,7 +473,7 @@
 #             ("Compliance Documents", checklist.compliance_documents),
 #             ("Additional Documents", checklist.additional_documents),
 #         ]
-
+        
 #         for title, docs in categories:
 #             if docs:
 #                 story.append(Paragraph(title.upper(), self.styles['SectionHeader']))
@@ -483,7 +483,7 @@
 #                         "recommended": "🟡 Recommended",
 #                         "optional": "🟢 Optional"
 #                     }.get(doc_item.priority.value, doc_item.priority.value)
-
+                    
 #                     story.append(Paragraph(
 #                         f"☐ <b>{doc_item.document_name}</b> - {priority_badge}",
 #                         self.styles['BodyText']
@@ -494,9 +494,9 @@
 #                             self.styles['BodyText']
 #                         ))
 #                 story.append(Spacer(1, 10))
-
+        
 #         doc.build(story, onFirstPage=self._on_page, onLaterPages=self._on_page)
-
+        
 #         # Save to Volumes
 #         if save_to_volumes and self._databricks_connector:
 #             pdf_buffer.seek(0)
@@ -508,15 +508,15 @@
 #                 )
 #             except Exception as e:
 #                 logger.warning(f"Failed to save checklist to Volumes: {e}")
-
+        
 #         # Save locally
 #         if save_to_volumes:
 #             pdf_buffer.seek(0)
 #             with open(filepath, 'wb') as f:
 #                 f.write(pdf_buffer.getvalue())
-
+        
 #         return filepath
-
+    
 #     def export_questionnaire(
 #         self,
 #         questionnaire: DynamicQuestionnaire,
@@ -526,36 +526,36 @@
 #     ) -> str:
 #         """
 #         Export questionnaire to PDF.
-
+        
 #         Args:
 #             questionnaire: The questionnaire structure
 #             responses: Optional dict of responses (for filled form)
 #             filename: Optional filename
 #             empty_form: If True, export empty form for hand-filling
-
+            
 #         Returns:
 #             Path to the generated PDF
 #         """
 #         if not REPORTLAB_AVAILABLE:
 #             return self._export_questionnaire_as_json(questionnaire, responses, filename)
-
+        
 #         form_type = "empty" if empty_form else "filled"
 #         filename = filename or f"questionnaire_{form_type}_{questionnaire.questionnaire_id[:8]}.pdf"
 #         filepath = os.path.join(self.output_dir, filename)
-
+        
 #         doc = SimpleDocTemplate(filepath, pagesize=A4, topMargin=60, bottomMargin=50)
 #         story = []
-
+        
 #         title = "ECDD QUESTIONNAIRE" + (" (BLANK FORM)" if empty_form else "")
 #         story.append(Paragraph(title, self.styles['DocTitle']))
 #         story.append(Spacer(1, 10))
-
+        
 #         # Client info
 #         story.append(Paragraph(f"<b>Customer:</b> {questionnaire.customer_name}", self.styles['BodyText']))
 #         story.append(Paragraph(f"<b>Customer ID:</b> {questionnaire.customer_id}", self.styles['BodyText']))
 #         story.append(Paragraph(f"<b>Date:</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d')}", self.styles['BodyText']))
 #         story.append(Spacer(1, 15))
-
+        
 #         # Sections and questions
 #         for section in questionnaire.sections:
 #             story.append(Paragraph(
@@ -565,7 +565,7 @@
 #             if section.section_description:
 #                 story.append(Paragraph(section.section_description, self.styles['BodyText']))
 #             story.append(Spacer(1, 8))
-
+            
 #             for q in section.questions:
 #                 # Question text
 #                 req = "*" if q.required else ""
@@ -573,13 +573,13 @@
 #                     f"<b>{q.question_text}</b>{req}",
 #                     self.styles['BodyText']
 #                 ))
-
+                
 #                 if q.help_text:
 #                     story.append(Paragraph(
 #                         f"<i>{q.help_text}</i>",
 #                         self.styles['BodyText']
 #                     ))
-
+                
 #                 # Response or blank field
 #                 if empty_form:
 #                     # Draw blank field
@@ -592,14 +592,14 @@
 #                         f"<b>Response:</b> {response}",
 #                         self.styles['BodyText']
 #                     ))
-
+                
 #                 story.append(Spacer(1, 8))
-
+            
 #             story.append(Spacer(1, 10))
-
+        
 #         doc.build(story, onFirstPage=self._on_page, onLaterPages=self._on_page)
 #         return filepath
-
+    
 #     def export_all(
 #         self,
 #         session: QuestionnaireSession,
@@ -607,26 +607,26 @@
 #     ) -> Dict[str, str]:
 #         """
 #         Export all documents for a session.
-
+        
 #         Returns:
 #             Dict with paths to all generated files
 #         """
 #         paths = {}
-
+        
 #         if session.ecdd_assessment:
 #             paths['assessment_pdf'] = self.export_ecdd_assessment(
 #                 session.ecdd_assessment,
 #                 session,
 #                 save_to_volumes=save_to_volumes
 #             )
-
+        
 #         if session.document_checklist:
 #             paths['checklist_pdf'] = self.export_document_checklist(
 #                 session.document_checklist,
 #                 session,
 #                 save_to_volumes=save_to_volumes
 #             )
-
+        
 #         if session.questionnaire:
 #             paths['questionnaire_filled'] = self.export_questionnaire(
 #                 session.questionnaire,
@@ -636,19 +636,19 @@
 #                 session.questionnaire,
 #                 empty_form=True
 #             )
-
+        
 #         # Export JSON summary
 #         paths['summary_json'] = self._export_summary_json(session)
-
+        
 #         return paths
-
+    
 #     def _export_summary_json(self, session: QuestionnaireSession) -> str:
 #         """Export session summary as JSON."""
 #         filepath = os.path.join(
 #             self.output_dir,
 #             f"session_summary_{session.session_id[:8]}.json"
 #         )
-
+        
 #         summary = {
 #             "session_id": session.session_id,
 #             "customer_id": session.customer_id,
@@ -657,52 +657,52 @@
 #             "created_at": session.created_at,
 #             "updated_at": session.updated_at,
 #         }
-
+        
 #         if session.ecdd_assessment:
 #             summary["ecdd_assessment"] = session.ecdd_assessment.model_dump()
-
+        
 #         if session.document_checklist:
 #             summary["document_checklist"] = session.document_checklist.model_dump()
-
+        
 #         if session.responses:
 #             summary["questionnaire_responses"] = session.responses
-
+        
 #         with open(filepath, 'w') as f:
 #             json.dump(summary, f, indent=2, default=str)
-
+        
 #         return filepath
-
+    
 #     def _export_assessment_as_json(self, assessment, session, filename) -> str:
 #         """Fallback: Export assessment as JSON."""
 #         filename = filename or f"ecdd_assessment_{session.session_id[:8]}.json"
 #         filepath = os.path.join(self.output_dir, filename)
-
+        
 #         with open(filepath, 'w') as f:
 #             json.dump(assessment.model_dump(), f, indent=2, default=str)
-
+        
 #         return filepath
-
+    
 #     def _export_checklist_as_json(self, checklist, session, filename) -> str:
 #         """Fallback: Export checklist as JSON."""
 #         filename = filename or f"document_checklist_{session.session_id[:8]}.json"
 #         filepath = os.path.join(self.output_dir, filename)
-
+        
 #         with open(filepath, 'w') as f:
 #             json.dump(checklist.model_dump(), f, indent=2, default=str)
-
+        
 #         return filepath
-
+    
 #     def _export_questionnaire_as_json(self, questionnaire, responses, filename) -> str:
 #         """Fallback: Export questionnaire as JSON."""
 #         filename = filename or f"questionnaire_{questionnaire.questionnaire_id[:8]}.json"
 #         filepath = os.path.join(self.output_dir, filename)
-
+        
 #         data = questionnaire.model_dump()
 #         data['responses'] = responses or {}
-
+        
 #         with open(filepath, 'w') as f:
 #             json.dump(data, f, indent=2, default=str)
-
+        
 #         return filepath
 """
 ECDD PDF Exporter - Maybank Malaysia Edition
@@ -760,47 +760,50 @@ logger = logging.getLogger(__name__)
 # MAYBANK MALAYSIA BRAND STYLING
 # =============================================================================
 
-MAYBANK_COLORS = {
-    # Primary Brand Colors
-    # Maybank Tiger Yellow (Primary)
-    "tiger_yellow":      colors.HexColor("#FFC72C"),
-    "maybank_gold":      colors.HexColor("#FFB81C"),   # Maybank Gold accent
-    "maybank_black":     colors.HexColor("#000000"),   # Pure Black
-    "maybank_charcoal":  colors.HexColor("#1A1A1A"),   # Charcoal for text
+# Only define colors if reportlab is available
+if REPORTLAB_AVAILABLE:
+    MAYBANK_COLORS = {
+        # Primary Brand Colors
+        "tiger_yellow":      colors.HexColor("#FFC72C"),   # Maybank Tiger Yellow (Primary)
+        "maybank_gold":      colors.HexColor("#FFB81C"),   # Maybank Gold accent
+        "maybank_black":     colors.HexColor("#000000"),   # Pure Black
+        "maybank_charcoal":  colors.HexColor("#1A1A1A"),   # Charcoal for text
+        
+        # Secondary Colors
+        "warm_gold":         colors.HexColor("#D4A017"),   # Warm gold for accents
+        "dark_gold":         colors.HexColor("#B8860B"),   # Darker gold
+        "light_yellow":      colors.HexColor("#FFF4CC"),   # Light yellow for backgrounds
+        "cream":             colors.HexColor("#FFFEF5"),   # Cream background
+        
+        # Neutral Tones
+        "dark_gray":         colors.HexColor("#333333"),   # Dark gray text
+        "medium_gray":       colors.HexColor("#666666"),   # Medium gray
+        "light_gray":        colors.HexColor("#E5E5E5"),   # Light gray borders
+        "off_white":         colors.HexColor("#F8F8F8"),   # Off-white backgrounds
+        
+        # Status Colors (Maybank-aligned)
+        "success":           colors.HexColor("#2E7D32"),   # Green - Approved/Low Risk
+        "warning":           colors.HexColor("#F57C00"),   # Orange - Medium Risk
+        "danger":            colors.HexColor("#C62828"),   # Red - High Risk
+        "info":              colors.HexColor("#1565C0"),   # Blue - Information
+        
+        # Table Styling
+        "table_header":      colors.HexColor("#1A1A1A"),   # Black header
+        "table_header_text": colors.HexColor("#FFC72C"),   # Yellow text on black
+        "table_alt_row":     colors.HexColor("#FFFEF5"),   # Cream alternating
+        "table_border":      colors.HexColor("#D4A017"),   # Gold border
+        
+        # Utility
+        "white":             colors.white,
+        "black":             colors.black,
+    }
+    # Alias for backward compatibility
+    BANK_COLORS = MAYBANK_COLORS
+else:
+    # Empty dict when reportlab not available
+    MAYBANK_COLORS = {}
+    BANK_COLORS = {}
 
-    # Secondary Colors
-    "warm_gold":         colors.HexColor("#D4A017"),   # Warm gold for accents
-    "dark_gold":         colors.HexColor("#B8860B"),   # Darker gold
-    # Light yellow for backgrounds
-    "light_yellow":      colors.HexColor("#FFF4CC"),
-    "cream":             colors.HexColor("#FFFEF5"),   # Cream background
-
-    # Neutral Tones
-    "dark_gray":         colors.HexColor("#333333"),   # Dark gray text
-    "medium_gray":       colors.HexColor("#666666"),   # Medium gray
-    "light_gray":        colors.HexColor("#E5E5E5"),   # Light gray borders
-    "off_white":         colors.HexColor("#F8F8F8"),   # Off-white backgrounds
-
-    # Status Colors (Maybank-aligned)
-    # Green - Approved/Low Risk
-    "success":           colors.HexColor("#2E7D32"),
-    "warning":           colors.HexColor("#F57C00"),   # Orange - Medium Risk
-    "danger":            colors.HexColor("#C62828"),   # Red - High Risk
-    "info":              colors.HexColor("#1565C0"),   # Blue - Information
-
-    # Table Styling
-    "table_header":      colors.HexColor("#1A1A1A"),   # Black header
-    "table_header_text": colors.HexColor("#FFC72C"),   # Yellow text on black
-    "table_alt_row":     colors.HexColor("#FFFEF5"),   # Cream alternating
-    "table_border":      colors.HexColor("#D4A017"),   # Gold border
-
-    # Utility
-    "white":             colors.white,
-    "black":             colors.black,
-}
-
-# Alias for backward compatibility
-BANK_COLORS = MAYBANK_COLORS
 
 
 # =============================================================================
@@ -809,18 +812,18 @@ BANK_COLORS = MAYBANK_COLORS
 
 class MaybankPDFStyles:
     """Professional Maybank Malaysia PDF styles with tiger-yellow branding."""
-
+    
     @staticmethod
     def get_styles():
         if not REPORTLAB_AVAILABLE:
             return {}
-
+            
         styles = getSampleStyleSheet()
-
+        
         # =================================================================
         # TITLE STYLES
         # =================================================================
-
+        
         # Main Document Title
         styles.add(ParagraphStyle(
             name='MaybankTitle',
@@ -833,7 +836,7 @@ class MaybankPDFStyles:
             leading=28,
             borderPadding=10,
         ))
-
+        
         # Gold Accent Title (for emphasis)
         styles.add(ParagraphStyle(
             name='MaybankTitleGold',
@@ -845,7 +848,7 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             leading=26,
         ))
-
+        
         # Subtitle
         styles.add(ParagraphStyle(
             name='MaybankSubtitle',
@@ -857,11 +860,11 @@ class MaybankPDFStyles:
             fontName='Helvetica',
             leading=16,
         ))
-
+        
         # =================================================================
         # SECTION HEADERS
         # =================================================================
-
+        
         # Primary Section Header (Black bg with yellow underline effect)
         styles.add(ParagraphStyle(
             name='SectionHeader',
@@ -874,7 +877,7 @@ class MaybankPDFStyles:
             leading=18,
             borderPadding=(8, 0, 4, 0),
         ))
-
+        
         # Subsection Header
         styles.add(ParagraphStyle(
             name='SubsectionHeader',
@@ -886,7 +889,7 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             leading=14,
         ))
-
+        
         # Category Header (for document categories)
         styles.add(ParagraphStyle(
             name='CategoryHeader',
@@ -900,11 +903,11 @@ class MaybankPDFStyles:
             backColor=MAYBANK_COLORS["light_yellow"],
             borderPadding=(6, 10, 6, 10),
         ))
-
+        
         # =================================================================
         # BODY TEXT STYLES
         # =================================================================
-
+        
         # Standard Body Text
         styles.add(ParagraphStyle(
             name='MaybankBody',
@@ -917,7 +920,7 @@ class MaybankPDFStyles:
             leading=14,
             wordWrap='CJK',
         ))
-
+        
         # Body Text - Left Aligned
         styles.add(ParagraphStyle(
             name='MaybankBodyLeft',
@@ -929,7 +932,7 @@ class MaybankPDFStyles:
             fontName='Helvetica',
             leading=14,
         ))
-
+        
         # Emphasized Body Text
         styles.add(ParagraphStyle(
             name='MaybankBodyEmphasis',
@@ -941,11 +944,11 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             leading=14,
         ))
-
+        
         # =================================================================
         # FIELD STYLES (for forms)
         # =================================================================
-
+        
         # Field Label
         styles.add(ParagraphStyle(
             name='FieldLabel',
@@ -956,7 +959,7 @@ class MaybankPDFStyles:
             spaceAfter=2,
             leading=11,
         ))
-
+        
         # Field Value
         styles.add(ParagraphStyle(
             name='FieldValue',
@@ -967,7 +970,7 @@ class MaybankPDFStyles:
             spaceAfter=8,
             leading=13,
         ))
-
+        
         # Field Value - Highlighted
         styles.add(ParagraphStyle(
             name='FieldValueHighlight',
@@ -978,11 +981,11 @@ class MaybankPDFStyles:
             spaceAfter=8,
             leading=13,
         ))
-
+        
         # =================================================================
         # SPECIAL STYLES
         # =================================================================
-
+        
         # Footer Style
         styles.add(ParagraphStyle(
             name='MaybankFooter',
@@ -992,7 +995,7 @@ class MaybankPDFStyles:
             alignment=TA_CENTER,
             leading=9,
         ))
-
+        
         # Confidentiality Notice
         styles.add(ParagraphStyle(
             name='ConfidentialNotice',
@@ -1003,7 +1006,7 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             leading=10,
         ))
-
+        
         # Note/Help Text
         styles.add(ParagraphStyle(
             name='HelpText',
@@ -1014,7 +1017,7 @@ class MaybankPDFStyles:
             spaceAfter=4,
             leading=11,
         ))
-
+        
         # Bullet Point Style
         styles.add(ParagraphStyle(
             name='BulletPoint',
@@ -1027,11 +1030,11 @@ class MaybankPDFStyles:
             leading=13,
             bulletIndent=5,
         ))
-
+        
         # =================================================================
         # RISK LEVEL STYLES
         # =================================================================
-
+        
         styles.add(ParagraphStyle(
             name='RiskLow',
             parent=styles['Normal'],
@@ -1040,7 +1043,7 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             alignment=TA_CENTER,
         ))
-
+        
         styles.add(ParagraphStyle(
             name='RiskMedium',
             parent=styles['Normal'],
@@ -1049,7 +1052,7 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             alignment=TA_CENTER,
         ))
-
+        
         styles.add(ParagraphStyle(
             name='RiskHigh',
             parent=styles['Normal'],
@@ -1058,7 +1061,7 @@ class MaybankPDFStyles:
             fontName='Helvetica-Bold',
             alignment=TA_CENTER,
         ))
-
+        
         styles.add(ParagraphStyle(
             name='RiskCritical',
             parent=styles['Normal'],
@@ -1069,11 +1072,11 @@ class MaybankPDFStyles:
             alignment=TA_CENTER,
             borderPadding=4,
         ))
-
+        
         # =================================================================
         # TABLE CELL STYLES
         # =================================================================
-
+        
         styles.add(ParagraphStyle(
             name='TableHeader',
             parent=styles['Normal'],
@@ -1083,7 +1086,7 @@ class MaybankPDFStyles:
             alignment=TA_CENTER,
             leading=12,
         ))
-
+        
         styles.add(ParagraphStyle(
             name='TableCell',
             parent=styles['Normal'],
@@ -1093,7 +1096,7 @@ class MaybankPDFStyles:
             alignment=TA_LEFT,
             leading=12,
         ))
-
+        
         styles.add(ParagraphStyle(
             name='TableCellCenter',
             parent=styles['Normal'],
@@ -1103,7 +1106,7 @@ class MaybankPDFStyles:
             alignment=TA_CENTER,
             leading=12,
         ))
-
+        
         return styles
 
 
@@ -1111,44 +1114,47 @@ class MaybankPDFStyles:
 BankPDFStyles = MaybankPDFStyles
 
 
+
+
 # =============================================================================
-# MAYBANK TABLE STYLE FACTORY
+# MAYBANK TABLE STYLE FACTORY (Requires reportlab)
 # =============================================================================
 
-class MaybankTableStyles:
-    """Pre-configured table styles matching Maybank branding."""
-
-    @staticmethod
-    def get_standard_table_style() -> TableStyle:
-        """Standard table with Maybank black header and gold accents."""
-        return TableStyle([
+if REPORTLAB_AVAILABLE:
+    class MaybankTableStyles:
+        """Pre-configured table styles matching Maybank branding."""
+        
+        @staticmethod
+        def get_standard_table_style() -> TableStyle:
+            """Standard table with Maybank black header and gold accents."""
+            return TableStyle([
             # Header row
             ('BACKGROUND', (0, 0), (-1, 0), MAYBANK_COLORS["maybank_black"]),
             ('TEXTCOLOR', (0, 0), (-1, 0), MAYBANK_COLORS["tiger_yellow"]),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-
+            
             # Body rows
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 9),
             ('TEXTCOLOR', (0, 1), (-1, -1), MAYBANK_COLORS["dark_gray"]),
-
+            
             # Grid and borders
             ('GRID', (0, 0), (-1, -1), 0.5, MAYBANK_COLORS["light_gray"]),
             ('BOX', (0, 0), (-1, -1), 1.5, MAYBANK_COLORS["dark_gold"]),
             ('LINEBELOW', (0, 0), (-1, 0), 2, MAYBANK_COLORS["tiger_yellow"]),
-
+            
             # Padding
             ('TOPPADDING', (0, 0), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('LEFTPADDING', (0, 0), (-1, -1), 8),
             ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-
+            
             # Alignment
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ])
-
+    
     @staticmethod
     def get_alternating_row_style(num_rows: int) -> TableStyle:
         """Table with alternating row colors."""
@@ -1159,17 +1165,17 @@ class MaybankTableStyles:
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-
+            
             # Body
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 9),
             ('TEXTCOLOR', (0, 1), (-1, -1), MAYBANK_COLORS["dark_gray"]),
-
+            
             # Borders
             ('GRID', (0, 0), (-1, -1), 0.5, MAYBANK_COLORS["light_gray"]),
             ('BOX', (0, 0), (-1, -1), 1.5, MAYBANK_COLORS["dark_gold"]),
             ('LINEBELOW', (0, 0), (-1, 0), 2, MAYBANK_COLORS["tiger_yellow"]),
-
+            
             # Padding
             ('TOPPADDING', (0, 0), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -1177,17 +1183,16 @@ class MaybankTableStyles:
             ('RIGHTPADDING', (0, 0), (-1, -1), 8),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]
-
+        
         # Add alternating row colors
         for row_idx in range(1, num_rows):
             if row_idx % 2 == 0:
                 style_commands.append(
-                    ('BACKGROUND', (0, row_idx),
-                     (-1, row_idx), MAYBANK_COLORS["cream"])
+                    ('BACKGROUND', (0, row_idx), (-1, row_idx), MAYBANK_COLORS["cream"])
                 )
-
+        
         return TableStyle(style_commands)
-
+    
     @staticmethod
     def get_info_box_style() -> TableStyle:
         """Style for information summary boxes."""
@@ -1201,7 +1206,7 @@ class MaybankTableStyles:
             ('LEFTPADDING', (0, 0), (-1, -1), 12),
             ('RIGHTPADDING', (0, 0), (-1, -1), 12),
         ])
-
+    
     @staticmethod
     def get_risk_card_style(risk_level: str) -> TableStyle:
         """Style for risk rating display cards."""
@@ -1211,9 +1216,8 @@ class MaybankTableStyles:
             'high': MAYBANK_COLORS["danger"],
             'critical': MAYBANK_COLORS["danger"],
         }
-        accent_color = risk_colors.get(
-            risk_level.lower(), MAYBANK_COLORS["medium_gray"])
-
+        accent_color = risk_colors.get(risk_level.lower(), MAYBANK_COLORS["medium_gray"])
+        
         return TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), MAYBANK_COLORS["off_white"]),
             ('BOX', (0, 0), (-1, -1), 2, accent_color),
@@ -1223,28 +1227,44 @@ class MaybankTableStyles:
             ('TOPPADDING', (0, 0), (-1, -1), 12),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
         ])
+else:
+    # Stub class when reportlab not available
+    class MaybankTableStyles:
+        @staticmethod
+        def get_standard_table_style():
+            return None
+        @staticmethod
+        def get_alternating_row_style(num_rows):
+            return None
+        @staticmethod
+        def get_info_box_style():
+            return None
+        @staticmethod
+        def get_risk_card_style(risk_level):
+            return None
 
 
 # =============================================================================
-# MARKDOWN PARSER (Maybank-styled)
+# MARKDOWN PARSER (Maybank-styled) - Requires reportlab
 # =============================================================================
 
-class MarkdownToPDF:
-    """
-    Parses LLM-generated markdown into ReportLab flowables.
-    Styled for Maybank branding.
-    """
-
-    def __init__(self, styles):
-        self.styles = styles
-
-    def parse(self, markdown_text: str) -> List[Any]:
-        """Parse markdown text into ReportLab flowables."""
-        if not markdown_text:
-            return []
-
-        flowables = []
-
+if REPORTLAB_AVAILABLE:
+    class MarkdownToPDF:
+        """
+        Parses LLM-generated markdown into ReportLab flowables.
+        Styled for Maybank branding.
+        """
+        
+        def __init__(self, styles):
+            self.styles = styles
+        
+        def parse(self, markdown_text: str) -> List[Any]:
+            """Parse markdown text into ReportLab flowables."""
+            if not markdown_text:
+                return []
+            
+            flowables = []
+        
         # Check for raw JSON
         stripped = markdown_text.strip()
         if stripped.startswith("{") and "}" in stripped:
@@ -1262,15 +1282,15 @@ class MarkdownToPDF:
 
         lines = markdown_text.split('\n')
         i = 0
-
+        
         while i < len(lines):
             line = lines[i]
             stripped = line.strip()
-
+            
             if not stripped:
                 i += 1
                 continue
-
+            
             # Tables
             if stripped.startswith('|'):
                 table_lines = []
@@ -1283,7 +1303,7 @@ class MarkdownToPDF:
                     flowables.append(table)
                     flowables.append(Spacer(1, 10))
                 continue
-
+            
             # Headers
             if stripped.startswith('####'):
                 text = stripped.lstrip('#').strip()
@@ -1295,14 +1315,12 @@ class MarkdownToPDF:
                 continue
             if stripped.startswith('###'):
                 text = stripped.lstrip('#').strip()
-                flowables.append(Paragraph(self._format_inline(
-                    text), self.styles['SubsectionHeader']))
+                flowables.append(Paragraph(self._format_inline(text), self.styles['SubsectionHeader']))
                 i += 1
                 continue
             if stripped.startswith('##'):
                 text = stripped.lstrip('#').strip()
-                flowables.append(Paragraph(self._format_inline(
-                    text), self.styles['SectionHeader']))
+                flowables.append(Paragraph(self._format_inline(text), self.styles['SectionHeader']))
                 # Add yellow underline effect
                 flowables.append(HRFlowable(
                     width="30%",
@@ -1315,11 +1333,10 @@ class MarkdownToPDF:
                 continue
             if stripped.startswith('#'):
                 text = stripped.lstrip('#').strip()
-                flowables.append(Paragraph(self._format_inline(
-                    text), self.styles['MaybankTitle']))
+                flowables.append(Paragraph(self._format_inline(text), self.styles['MaybankTitle']))
                 i += 1
                 continue
-
+            
             # Bullet lists
             if stripped.startswith(('- ', '* ', '• ')):
                 list_items = []
@@ -1335,10 +1352,9 @@ class MarkdownToPDF:
                         break
                 for item in list_items:
                     bullet_text = f"<font color='#FFC72C'>▸</font> {self._format_inline(item)}"
-                    flowables.append(
-                        Paragraph(bullet_text, self.styles['BulletPoint']))
+                    flowables.append(Paragraph(bullet_text, self.styles['BulletPoint']))
                 continue
-
+            
             # Numbered lists
             if re.match(r'^\d+[\.\)]\s', stripped):
                 list_items = []
@@ -1354,34 +1370,32 @@ class MarkdownToPDF:
                         break
                 for num, item in list_items:
                     num_text = f"<font color='#D4A017'><b>{num}.</b></font> {self._format_inline(item)}"
-                    flowables.append(
-                        Paragraph(num_text, self.styles['BulletPoint']))
+                    flowables.append(Paragraph(num_text, self.styles['BulletPoint']))
                 continue
-
+            
             # Regular paragraph
             paragraph_lines = [stripped]
             i += 1
             while i < len(lines):
                 current = lines[i].strip()
-                if (current == '' or
+                if (current == '' or 
                     current.startswith(('#', '-', '*', '•', '|')) or
-                        re.match(r'^\d+[\.\)]\s', current)):
+                    re.match(r'^\d+[\.\)]\s', current)):
                     break
                 paragraph_lines.append(current)
                 i += 1
-
+            
             full_text = ' '.join(paragraph_lines)
-            flowables.append(Paragraph(self._format_inline(
-                full_text), self.styles['MaybankBody']))
-
+            flowables.append(Paragraph(self._format_inline(full_text), self.styles['MaybankBody']))
+        
         return flowables
-
+    
     def _format_inline(self, text: str) -> str:
         """Convert inline markdown to ReportLab XML with Maybank styling."""
         text = text.replace('&', '&amp;')
         text = text.replace('<', '&lt;')
         text = text.replace('>', '&gt;')
-
+        
         # Bold with gold color for emphasis
         text = re.sub(
             r'\*\*(.+?)\*\*',
@@ -1391,16 +1405,15 @@ class MarkdownToPDF:
         # Italic
         text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
         # Code/monospace
-        text = re.sub(
-            r'`(.+?)`', r'<font face="Courier" size=9>\1</font>', text)
-
+        text = re.sub(r'`(.+?)`', r'<font face="Courier" size=9>\1</font>', text)
+        
         return text
-
+    
     def _parse_table(self, table_lines: List[str]) -> Optional[Table]:
         """Parse markdown table into Maybank-styled ReportLab Table."""
         if len(table_lines) < 2:
             return None
-
+        
         rows = []
         for line in table_lines:
             if re.match(r'^[\|\s\-:]+$', line):
@@ -1409,37 +1422,41 @@ class MarkdownToPDF:
             cells = [c for c in cells if c]
             if cells:
                 rows.append(cells)
-
+        
         if not rows:
             return None
-
+        
         num_cols = max(len(row) for row in rows)
         available_width = 6.5 * inch
         col_width = available_width / num_cols
-
+        
         table_data = []
         for row_idx, row in enumerate(rows):
             while len(row) < num_cols:
                 row.append('')
-
+            
             if row_idx == 0:
                 styled_row = [
-                    Paragraph(self._format_inline(cell),
-                              self.styles['TableHeader'])
+                    Paragraph(self._format_inline(cell), self.styles['TableHeader'])
                     for cell in row
                 ]
             else:
                 styled_row = [
-                    Paragraph(self._format_inline(cell),
-                              self.styles['TableCell'])
+                    Paragraph(self._format_inline(cell), self.styles['TableCell'])
                     for cell in row
                 ]
             table_data.append(styled_row)
-
+        
         table = Table(table_data, colWidths=[col_width] * num_cols)
-        table.setStyle(
-            MaybankTableStyles.get_alternating_row_style(len(table_data)))
+        table.setStyle(MaybankTableStyles.get_alternating_row_style(len(table_data)))
         return table
+else:
+    # Stub class when reportlab not available
+    class MarkdownToPDF:
+        def __init__(self, styles):
+            self.styles = styles
+        def parse(self, markdown_text):
+            return []
 
 
 # =============================================================================
@@ -1451,82 +1468,77 @@ class ECDDExporter:
     Professional PDF exporter for ECDD documents.
     Styled for Maybank Malaysia branding.
     """
-
+    
     BANK_NAME = "MAYBANK"
     BANK_FULL_NAME = "Malayan Banking Berhad"
     DEPARTMENT = "Group Compliance - Enhanced Due Diligence"
-
+    
     def __init__(self, output_dir: str = "./exports"):
         self.output_dir = output_dir
         self.styles = MaybankPDFStyles.get_styles() if REPORTLAB_AVAILABLE else {}
         os.makedirs(output_dir, exist_ok=True)
         self._databricks_connector = None
-
+        
         if REPORTLAB_AVAILABLE:
             self.md_parser = MarkdownToPDF(self.styles)
-
+    
     def set_databricks_connector(self, connector):
         """Set Databricks connector for Volumes integration."""
         self._databricks_connector = connector
-
+    
     # -------------------------------------------------------------------------
     # MAYBANK PAGE TEMPLATES
     # -------------------------------------------------------------------------
-
+    
     def _add_page_header(self, canvas_obj, doc):
         """Add Maybank branded header to each page."""
         canvas_obj.saveState()
-
+        
         page_width = doc.pagesize[0]
         page_height = doc.pagesize[1]
-
+        
         # Top black bar with yellow accent
         canvas_obj.setFillColor(MAYBANK_COLORS["maybank_black"])
-        canvas_obj.rect(0, page_height - 50, page_width,
-                        50, fill=True, stroke=False)
-
+        canvas_obj.rect(0, page_height - 50, page_width, 50, fill=True, stroke=False)
+        
         # Yellow accent line below black bar
         canvas_obj.setFillColor(MAYBANK_COLORS["tiger_yellow"])
-        canvas_obj.rect(0, page_height - 54, page_width,
-                        4, fill=True, stroke=False)
-
+        canvas_obj.rect(0, page_height - 54, page_width, 4, fill=True, stroke=False)
+        
         # Bank name in header (yellow on black)
         canvas_obj.setFont('Helvetica-Bold', 14)
         canvas_obj.setFillColor(MAYBANK_COLORS["tiger_yellow"])
         canvas_obj.drawString(40, page_height - 35, self.BANK_NAME)
-
+        
         # Department name
         canvas_obj.setFont('Helvetica', 9)
         canvas_obj.setFillColor(colors.white)
-        canvas_obj.drawRightString(
-            page_width - 40, page_height - 30, self.DEPARTMENT)
-
+        canvas_obj.drawRightString(page_width - 40, page_height - 30, self.DEPARTMENT)
+        
         # Document type indicator
         canvas_obj.setFont('Helvetica', 8)
-        canvas_obj.drawRightString(
-            page_width - 40, page_height - 42, "CONFIDENTIAL")
-
+        canvas_obj.drawRightString(page_width - 40, page_height - 42, "CONFIDENTIAL")
+        
         canvas_obj.restoreState()
-
+    
     def _add_page_footer(self, canvas_obj, doc):
         """Add Maybank branded footer with page numbers."""
         canvas_obj.saveState()
-
+        
         page_width = doc.pagesize[0]
-
+        
         # Bottom yellow line
         canvas_obj.setStrokeColor(MAYBANK_COLORS["tiger_yellow"])
         canvas_obj.setLineWidth(2)
         canvas_obj.line(40, 50, page_width - 40, 50)
-
+        
         # Footer text
         canvas_obj.setFont('Helvetica', 7)
         canvas_obj.setFillColor(MAYBANK_COLORS["medium_gray"])
-
+        
         # Left: Bank info
-        canvas_obj.drawString(
-            40, 38, f"{self.BANK_FULL_NAME} | Licensed by Bank Negara Malaysia")
-
+        canvas_obj.drawString(40, 38, f"{self.BANK_FULL_NAME} | Licensed by Bank Negara Malaysia")
+        
         # Center: Confidentiality
         canvas_obj.setFillColor(MAYBANK_COLORS["danger"])
         canvas_obj.setFont('Helvetica-Bold', 7)
@@ -1534,37 +1546,37 @@ class ECDDExporter:
             page_width / 2, 28,
             "SULIT / CONFIDENTIAL - For Internal Compliance Use Only"
         )
-
+        
         # Right: Page number with date
         canvas_obj.setFillColor(MAYBANK_COLORS["medium_gray"])
         canvas_obj.setFont('Helvetica', 7)
         page_info = f"Page {canvas_obj.getPageNumber()} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
         canvas_obj.drawRightString(page_width - 40, 38, page_info)
-
+        
         canvas_obj.restoreState()
-
+    
     def _on_page(self, canvas_obj, doc):
         """Combined header and footer callback."""
         self._add_page_header(canvas_obj, doc)
         self._add_page_footer(canvas_obj, doc)
-
+    
     def _on_first_page(self, canvas_obj, doc):
         """First page with additional branding."""
         self._on_page(canvas_obj, doc)
         # Could add watermark or logo here
-
+    
     # -------------------------------------------------------------------------
     # MAYBANK RENDERING HELPERS
     # -------------------------------------------------------------------------
-
+    
     def _create_title_block(self, title: str, subtitle: str = None) -> List:
         """Create Maybank-styled title block."""
         elements = []
         elements.append(Spacer(1, 25))
-
+        
         # Main title
         elements.append(Paragraph(title, self.styles['MaybankTitle']))
-
+        
         # Yellow decorative line
         elements.append(Spacer(1, 8))
         elements.append(HRFlowable(
@@ -1574,30 +1586,27 @@ class ECDDExporter:
             spaceAfter=4,
             hAlign='CENTER'
         ))
-
+        
         if subtitle:
-            elements.append(
-                Paragraph(subtitle, self.styles['MaybankSubtitle']))
-
+            elements.append(Paragraph(subtitle, self.styles['MaybankSubtitle']))
+        
         elements.append(Spacer(1, 15))
         return elements
-
+    
     def _render_client_summary(self, session: QuestionnaireSession) -> List:
         """Render Maybank-styled client information summary box."""
         elements = []
-
+        
         info_data = [
             [
                 Paragraph('<b>Client Name:</b>', self.styles['FieldLabel']),
-                Paragraph(str(session.customer_name),
-                          self.styles['FieldValue']),
+                Paragraph(str(session.customer_name), self.styles['FieldValue']),
                 Paragraph('<b>Client ID:</b>', self.styles['FieldLabel']),
                 Paragraph(str(session.customer_id), self.styles['FieldValue']),
             ],
             [
                 Paragraph('<b>Session ID:</b>', self.styles['FieldLabel']),
-                Paragraph(str(session.session_id)[
-                          :20] + '...', self.styles['FieldValue']),
+                Paragraph(str(session.session_id)[:20] + '...', self.styles['FieldValue']),
                 Paragraph('<b>Status:</b>', self.styles['FieldLabel']),
                 Paragraph(
                     f'<b>{str(session.status.value).upper()}</b>',
@@ -1612,25 +1621,23 @@ class ECDDExporter:
                 ),
                 Paragraph('<b>Started:</b>', self.styles['FieldLabel']),
                 Paragraph(
-                    session.created_at.strftime(
-                        '%Y-%m-%d') if session.created_at else 'N/A',
+                    session.created_at.strftime('%Y-%m-%d') if session.created_at else 'N/A',
                     self.styles['FieldValue']
                 ),
             ],
         ]
-
-        info_table = Table(info_data, colWidths=[
-                           1.2*inch, 2*inch, 1.2*inch, 2*inch])
+        
+        info_table = Table(info_data, colWidths=[1.2*inch, 2*inch, 1.2*inch, 2*inch])
         info_table.setStyle(MaybankTableStyles.get_info_box_style())
-
+        
         elements.append(info_table)
         elements.append(Spacer(1, 20))
         return elements
-
+    
     def _render_risk_rating_card(self, rating: str, score: float) -> Table:
         """Create a styled risk rating display card."""
         rating_upper = rating.upper()
-
+        
         # Determine colors and icon
         if rating_upper == "LOW":
             color = MAYBANK_COLORS["success"]
@@ -1648,7 +1655,7 @@ class ECDDExporter:
             color = MAYBANK_COLORS["medium_gray"]
             icon = "●"
             bg_color = MAYBANK_COLORS["off_white"]
-
+        
         # Create risk card
         card_data = [[
             Paragraph(
@@ -1664,7 +1671,7 @@ class ECDDExporter:
                 )
             )
         ]]
-
+        
         card = Table(card_data, colWidths=[3*inch])
         card.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), bg_color),
@@ -1674,9 +1681,9 @@ class ECDDExporter:
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
-
+        
         return card
-
+    
     def _render_section_header(self, title: str) -> List:
         """Create a Maybank-styled section header with yellow accent."""
         elements = []
@@ -1690,7 +1697,7 @@ class ECDDExporter:
             hAlign='LEFT'
         ))
         return elements
-
+    
     def _render_compliance_flags(self, flags: ComplianceFlags) -> Table:
         """Render compliance flags in Maybank style."""
         flag_data = [
@@ -1716,13 +1723,12 @@ class ECDDExporter:
                 "Watchlist match" if flags.watchlist_hit else "No watchlist match"
             ],
         ]
-
+        
         # Style the data
         styled_data = []
         for row_idx, row in enumerate(flag_data):
             if row_idx == 0:
-                styled_row = [
-                    Paragraph(f"<b>{cell}</b>", self.styles['TableHeader']) for cell in row]
+                styled_row = [Paragraph(f"<b>{cell}</b>", self.styles['TableHeader']) for cell in row]
             else:
                 status_color = MAYBANK_COLORS["danger"] if "YES" in row[1] else MAYBANK_COLORS["success"]
                 styled_row = [
@@ -1734,16 +1740,15 @@ class ECDDExporter:
                     Paragraph(row[2], self.styles['TableCell']),
                 ]
             styled_data.append(styled_row)
-
+        
         table = Table(styled_data, colWidths=[1.5*inch, 1*inch, 3.5*inch])
-        table.setStyle(
-            MaybankTableStyles.get_alternating_row_style(len(styled_data)))
+        table.setStyle(MaybankTableStyles.get_alternating_row_style(len(styled_data)))
         return table
-
+    
     # -------------------------------------------------------------------------
     # EXPORT ASSESSMENT
     # -------------------------------------------------------------------------
-
+    
     def export_ecdd_assessment(
         self,
         assessment: ECDDAssessment,
@@ -1754,10 +1759,10 @@ class ECDDExporter:
         """Export ECDD Assessment to professional Maybank-styled PDF."""
         if not REPORTLAB_AVAILABLE:
             raise RuntimeError("reportlab is required for PDF export.")
-
+        
         filename = filename or f"ecdd_assessment_{session.session_id[:8]}.pdf"
         filepath = os.path.join(self.output_dir, filename)
-
+        
         pdf_buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             pdf_buffer if save_to_volumes else filepath,
@@ -1768,46 +1773,44 @@ class ECDDExporter:
             bottomMargin=65,
             allowSplitting=1
         )
-
+        
         story = []
-
+        
         # Title Block
         story.extend(self._create_title_block(
             "ECDD ASSESSMENT REPORT",
             f"Enhanced Client Due Diligence Report | {datetime.now(timezone.utc).strftime('%B %Y')}"
         ))
-
+        
         # Client Summary
         story.extend(self._render_client_summary(session))
-
+        
         # =================================================================
         # 1. RISK RATING SUMMARY
         # =================================================================
         story.extend(self._render_section_header("OVERALL RISK RATING"))
-
+        
         rating = assessment.overall_risk_rating.value
-
+        
         # Risk card in a centered table
-        risk_card = self._render_risk_rating_card(
-            rating, assessment.risk_score)
+        risk_card = self._render_risk_rating_card(rating, assessment.risk_score)
         story.append(risk_card)
         story.append(Spacer(1, 20))
-
+        
         # =================================================================
         # 2. COMPLIANCE FLAGS
         # =================================================================
         if assessment.compliance_flags:
             story.extend(self._render_section_header("COMPLIANCE FLAGS"))
-            story.append(self._render_compliance_flags(
-                assessment.compliance_flags))
+            story.append(self._render_compliance_flags(assessment.compliance_flags))
             story.append(Spacer(1, 15))
-
+        
         # =================================================================
         # 3. RISK FACTORS BREAKDOWN
         # =================================================================
         if assessment.risk_factors:
             story.extend(self._render_section_header("RISK FACTORS BREAKDOWN"))
-
+            
             factors_data = [["Factor", "Level", "Score", "Details"]]
             for f in assessment.risk_factors:
                 level = f.level.value.upper()
@@ -1816,31 +1819,26 @@ class ECDDExporter:
                     level_color = MAYBANK_COLORS["warning"]
                 elif level in ["HIGH", "CRITICAL"]:
                     level_color = MAYBANK_COLORS["danger"]
-
+                
                 factors_data.append([
                     Paragraph(f.factor_name, self.styles['TableCell']),
                     Paragraph(
                         f"<font color='#{level_color.hexval()[2:]}'><b>{level}</b></font>",
                         self.styles['TableCellCenter']
                     ),
-                    Paragraph(f"{f.score:.2f}",
-                              self.styles['TableCellCenter']),
-                    Paragraph(f.explanation[:60] + "..." if len(f.explanation)
-                              > 60 else f.explanation, self.styles['TableCell'])
+                    Paragraph(f"{f.score:.2f}", self.styles['TableCellCenter']),
+                    Paragraph(f.explanation[:60] + "..." if len(f.explanation) > 60 else f.explanation, self.styles['TableCell'])
                 ])
-
+            
             # Header row styling
-            header_row = [
-                Paragraph(f"<b>{h}</b>", self.styles['TableHeader']) for h in factors_data[0]]
+            header_row = [Paragraph(f"<b>{h}</b>", self.styles['TableHeader']) for h in factors_data[0]]
             factors_data[0] = header_row
-
-            factors_table = Table(factors_data, colWidths=[
-                                  1.5*inch, 1*inch, 0.8*inch, 2.7*inch])
-            factors_table.setStyle(
-                MaybankTableStyles.get_alternating_row_style(len(factors_data)))
+            
+            factors_table = Table(factors_data, colWidths=[1.5*inch, 1*inch, 0.8*inch, 2.7*inch])
+            factors_table.setStyle(MaybankTableStyles.get_alternating_row_style(len(factors_data)))
             story.append(factors_table)
             story.append(Spacer(1, 20))
-
+        
         # =================================================================
         # 4. DETAILED ASSESSMENT
         # =================================================================
@@ -1849,25 +1847,24 @@ class ECDDExporter:
             parsed_elements = self.md_parser.parse(assessment.report_text)
             story.extend(parsed_elements)
             story.append(Spacer(1, 15))
-
+        
         # =================================================================
         # 5. RECOMMENDATIONS
         # =================================================================
         if assessment.recommendations:
             story.extend(self._render_section_header("RECOMMENDATIONS"))
-
+            
             for i, rec in enumerate(assessment.recommendations, 1):
                 rec_text = f"<font color='#D4A017'><b>{i}.</b></font> {rec}"
                 story.append(Paragraph(rec_text, self.styles['MaybankBody']))
                 story.append(Spacer(1, 4))
-
+        
         # =================================================================
         # 6. SIGN-OFF SECTION
         # =================================================================
         story.append(Spacer(1, 30))
-        story.append(HRFlowable(width="100%", thickness=1,
-                     color=MAYBANK_COLORS["light_gray"], spaceAfter=15))
-
+        story.append(HRFlowable(width="100%", thickness=1, color=MAYBANK_COLORS["light_gray"], spaceAfter=15))
+        
         signoff_data = [
             [
                 Paragraph("<b>Prepared By:</b>", self.styles['FieldLabel']),
@@ -1888,20 +1885,18 @@ class ECDDExporter:
                 Paragraph("_" * 20, self.styles['FieldValue']),
             ],
         ]
-
-        signoff_table = Table(signoff_data, colWidths=[
-                              1.2*inch, 2.3*inch, 0.8*inch, 1.7*inch])
+        
+        signoff_table = Table(signoff_data, colWidths=[1.2*inch, 2.3*inch, 0.8*inch, 1.7*inch])
         signoff_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 12),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
         ]))
         story.append(signoff_table)
-
+        
         # Build PDF
-        doc.build(story, onFirstPage=self._on_first_page,
-                  onLaterPages=self._on_page)
-
+        doc.build(story, onFirstPage=self._on_first_page, onLaterPages=self._on_page)
+        
         # Save to Volumes
         if save_to_volumes and self._databricks_connector:
             pdf_buffer.seek(0)
@@ -1912,26 +1907,24 @@ class ECDDExporter:
                     pdf_bytes,
                     filename
                 )
-                logger.info(
-                    f"Successfully saved ECDD Assessment to Volumes: {volume_path}")
+                logger.info(f"Successfully saved ECDD Assessment to Volumes: {volume_path}")
             except AttributeError:
-                logger.error(
-                    "Databricks connector does not have 'write_pdf_to_volume' method.")
+                logger.error("Databricks connector does not have 'write_pdf_to_volume' method.")
             except Exception as e:
                 logger.error(f"Failed to save to Volumes: {e}", exc_info=True)
-
+        
         # Save Locally
         pdf_buffer.seek(0)
         with open(filepath, 'wb') as f:
             f.write(pdf_buffer.getvalue())
-
+            
         logger.info(f"Exported ECDD Assessment: {filepath}")
         return filepath
-
+    
     # -------------------------------------------------------------------------
     # EXPORT DOCUMENT CHECKLIST
     # -------------------------------------------------------------------------
-
+    
     def export_document_checklist(
         self,
         checklist: DocumentChecklist,
@@ -1942,10 +1935,10 @@ class ECDDExporter:
         """Export document checklist to Maybank-styled PDF."""
         if not REPORTLAB_AVAILABLE:
             raise RuntimeError("reportlab is required for PDF export.")
-
+        
         filename = filename or f"document_checklist_{session.session_id[:8]}.pdf"
         filepath = os.path.join(self.output_dir, filename)
-
+        
         pdf_buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             pdf_buffer if save_to_volumes else filepath,
@@ -1955,26 +1948,23 @@ class ECDDExporter:
             topMargin=70,
             bottomMargin=65
         )
-
+        
         story = []
-
+        
         # Title Block
         story.extend(self._create_title_block(
             "DOCUMENT CHECKLIST",
             "Required Documentation for ECDD Review"
         ))
-
+        
         # Client Summary
         story.extend(self._render_client_summary(session))
-
+        
         # Priority Legend
         legend_data = [[
-            Paragraph("<font color='#C62828'>●</font> <b>Required</b>",
-                      self.styles['MaybankBody']),
-            Paragraph("<font color='#F57C00'>●</font> <b>Recommended</b>",
-                      self.styles['MaybankBody']),
-            Paragraph("<font color='#2E7D32'>●</font> <b>Optional</b>",
-                      self.styles['MaybankBody']),
+            Paragraph("<font color='#C62828'>●</font> <b>Required</b>", self.styles['MaybankBody']),
+            Paragraph("<font color='#F57C00'>●</font> <b>Recommended</b>", self.styles['MaybankBody']),
+            Paragraph("<font color='#2E7D32'>●</font> <b>Optional</b>", self.styles['MaybankBody']),
         ]]
         legend = Table(legend_data, colWidths=[2*inch, 2*inch, 2*inch])
         legend.setStyle(TableStyle([
@@ -1986,7 +1976,7 @@ class ECDDExporter:
         ]))
         story.append(legend)
         story.append(Spacer(1, 20))
-
+        
         def render_category(title: str, docs: list, icon: str = "📄"):
             """Render a document category section."""
             if not docs:
@@ -1997,9 +1987,9 @@ class ECDDExporter:
                 ))
                 story.append(Spacer(1, 10))
                 return
-
+            
             story.extend(self._render_section_header(f"{icon} {title}"))
-
+            
             data = [["✓", "Document Name", "Priority", "Special Instructions"]]
             for doc_item in docs:
                 # Priority styling
@@ -2010,57 +2000,47 @@ class ECDDExporter:
                     priority_text = "<font color='#F57C00'>● Recommended</font>"
                 else:
                     priority_text = "<font color='#2E7D32'>● Optional</font>"
-
+                
                 instructions = doc_item.special_instructions or "-"
                 if len(instructions) > 45:
                     instructions = instructions[:45] + "..."
-
+                
                 data.append([
                     Paragraph("☐", self.styles['TableCellCenter']),
-                    Paragraph(f"<b>{doc_item.document_name}</b>",
-                              self.styles['TableCell']),
+                    Paragraph(f"<b>{doc_item.document_name}</b>", self.styles['TableCell']),
                     Paragraph(priority_text, self.styles['TableCellCenter']),
                     Paragraph(instructions, self.styles['TableCell']),
                 ])
-
+            
             # Style header
-            header_row = [
-                Paragraph(f"<b>{h}</b>", self.styles['TableHeader']) for h in data[0]]
+            header_row = [Paragraph(f"<b>{h}</b>", self.styles['TableHeader']) for h in data[0]]
             data[0] = header_row
-
+            
             t = Table(data, colWidths=[0.4*inch, 2.2*inch, 1.2*inch, 2.6*inch])
             t.setStyle(MaybankTableStyles.get_alternating_row_style(len(data)))
             story.append(t)
             story.append(Spacer(1, 15))
-
+        
         # Render all categories with icons
-        render_category("IDENTITY DOCUMENTS",
-                        checklist.identity_documents, "🪪")
-        render_category("SOURCE OF WEALTH",
-                        checklist.source_of_wealth_documents, "💰")
-        render_category("SOURCE OF FUNDS",
-                        checklist.source_of_funds_documents, "🏦")
-        render_category("COMPLIANCE DOCUMENTS",
-                        checklist.compliance_documents, "📋")
-        render_category("ADDITIONAL DOCUMENTS",
-                        checklist.additional_documents, "📎")
-
+        render_category("IDENTITY DOCUMENTS", checklist.identity_documents, "🪪")
+        render_category("SOURCE OF WEALTH", checklist.source_of_wealth_documents, "💰")
+        render_category("SOURCE OF FUNDS", checklist.source_of_funds_documents, "🏦")
+        render_category("COMPLIANCE DOCUMENTS", checklist.compliance_documents, "📋")
+        render_category("ADDITIONAL DOCUMENTS", checklist.additional_documents, "📎")
+        
         # Notes section
         story.append(Spacer(1, 20))
-        story.append(HRFlowable(width="100%", thickness=1,
-                     color=MAYBANK_COLORS["light_gray"], spaceAfter=10))
-        story.append(Paragraph("<b>Notes:</b>",
-                     self.styles['MaybankBodyEmphasis']))
+        story.append(HRFlowable(width="100%", thickness=1, color=MAYBANK_COLORS["light_gray"], spaceAfter=10))
+        story.append(Paragraph("<b>Notes:</b>", self.styles['MaybankBodyEmphasis']))
         story.append(Paragraph(
             "• All documents must be certified true copies unless otherwise specified.<br/>"
             "• Documents in languages other than English or Bahasa Malaysia must be accompanied by certified translations.<br/>"
             "• Additional documents may be requested based on risk assessment outcomes.",
             self.styles['MaybankBody']
         ))
-
-        doc.build(story, onFirstPage=self._on_first_page,
-                  onLaterPages=self._on_page)
-
+        
+        doc.build(story, onFirstPage=self._on_first_page, onLaterPages=self._on_page)
+        
         # Save to Volumes
         if save_to_volumes and self._databricks_connector:
             pdf_buffer.seek(0)
@@ -2073,18 +2053,18 @@ class ECDDExporter:
                 logger.info("Saved checklist to Volumes")
             except Exception as e:
                 logger.error(f"Failed to save checklist to Volumes: {e}")
-
+        
         # Save Locally
         pdf_buffer.seek(0)
         with open(filepath, 'wb') as f:
             f.write(pdf_buffer.getvalue())
-
+            
         return filepath
-
+    
     # -------------------------------------------------------------------------
     # EXPORT QUESTIONNAIRE
     # -------------------------------------------------------------------------
-
+    
     def export_questionnaire(
         self,
         questionnaire: DynamicQuestionnaire,
@@ -2095,11 +2075,11 @@ class ECDDExporter:
         """Export questionnaire to Maybank-styled PDF."""
         if not REPORTLAB_AVAILABLE:
             raise RuntimeError("reportlab is required for PDF export.")
-
+        
         form_type = "empty" if empty_form else "filled"
         filename = filename or f"questionnaire_{form_type}_{questionnaire.questionnaire_id[:8]}.pdf"
         filepath = os.path.join(self.output_dir, filename)
-
+        
         doc = SimpleDocTemplate(
             filepath,
             pagesize=A4,
@@ -2108,39 +2088,36 @@ class ECDDExporter:
             topMargin=70,
             bottomMargin=65
         )
-
+        
         story = []
-
+        
         # Title Block
         subtitle = "(Blank Form - To Be Completed)" if empty_form else "(Completed)"
         story.extend(self._create_title_block(
             "ECDD QUESTIONNAIRE",
             subtitle
         ))
-
+        
         # Client info box
         info_data = [
             [
                 Paragraph('<b>Customer Name:</b>', self.styles['FieldLabel']),
-                Paragraph(str(questionnaire.customer_name),
-                          self.styles['FieldValue']),
+                Paragraph(str(questionnaire.customer_name), self.styles['FieldValue']),
             ],
             [
                 Paragraph('<b>Customer ID:</b>', self.styles['FieldLabel']),
-                Paragraph(str(questionnaire.customer_id),
-                          self.styles['FieldValue']),
+                Paragraph(str(questionnaire.customer_id), self.styles['FieldValue']),
             ],
             [
                 Paragraph('<b>Date:</b>', self.styles['FieldLabel']),
-                Paragraph(datetime.now(timezone.utc).strftime(
-                    '%Y-%m-%d'), self.styles['FieldValue']),
+                Paragraph(datetime.now(timezone.utc).strftime('%Y-%m-%d'), self.styles['FieldValue']),
             ],
         ]
         info_table = Table(info_data, colWidths=[1.5*inch, 4.5*inch])
         info_table.setStyle(MaybankTableStyles.get_info_box_style())
         story.append(info_table)
         story.append(Spacer(1, 20))
-
+        
         # Instructions
         if empty_form:
             story.append(Paragraph(
@@ -2149,33 +2126,32 @@ class ECDDExporter:
                 self.styles['MaybankBody']
             ))
             story.append(Spacer(1, 15))
-
+        
         # Sections and questions
         for section in questionnaire.sections:
             # Section header with yellow accent
             story.extend(self._render_section_header(section.section_title))
-
+            
             if section.section_description:
                 story.append(Paragraph(
                     f"<i>{section.section_description}</i>",
                     self.styles['HelpText']
                 ))
                 story.append(Spacer(1, 8))
-
+            
             for q_idx, q in enumerate(section.questions, 1):
                 # Question box
                 req_marker = "<font color='#C62828'>*</font>" if q.required else ""
-
+                
                 question_text = f"<b>Q{q_idx}. {q.question_text}</b> {req_marker}"
-                story.append(
-                    Paragraph(question_text, self.styles['MaybankBodyEmphasis']))
-
+                story.append(Paragraph(question_text, self.styles['MaybankBodyEmphasis']))
+                
                 if q.help_text:
                     story.append(Paragraph(
                         f"<font color='#666666' size=8><i>{q.help_text}</i></font>",
                         self.styles['HelpText']
                     ))
-
+                
                 # Response area
                 if empty_form:
                     # Draw response box
@@ -2185,8 +2161,7 @@ class ECDDExporter:
                         rowHeights=[0.6*inch]
                     )
                     response_box.setStyle(TableStyle([
-                        ('BOX', (0, 0), (-1, -1), 1,
-                         MAYBANK_COLORS["light_gray"]),
+                        ('BOX', (0, 0), (-1, -1), 1, MAYBANK_COLORS["light_gray"]),
                         ('BACKGROUND', (0, 0), (-1, -1), colors.white),
                     ]))
                     story.append(response_box)
@@ -2194,34 +2169,29 @@ class ECDDExporter:
                     response = responses[q.field_id]
                     if isinstance(response, list):
                         response = ", ".join(str(r) for r in response)
-
+                    
                     response_box = Table(
-                        [[Paragraph(
-                            f"<b>Response:</b> {response}", self.styles['FieldValue'])]],
+                        [[Paragraph(f"<b>Response:</b> {response}", self.styles['FieldValue'])]],
                         colWidths=[6*inch]
                     )
                     response_box.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, -1),
-                         MAYBANK_COLORS["light_yellow"]),
-                        ('BOX', (0, 0), (-1, -1), 1,
-                         MAYBANK_COLORS["dark_gold"]),
+                        ('BACKGROUND', (0, 0), (-1, -1), MAYBANK_COLORS["light_yellow"]),
+                        ('BOX', (0, 0), (-1, -1), 1, MAYBANK_COLORS["dark_gold"]),
                         ('TOPPADDING', (0, 0), (-1, -1), 8),
                         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                         ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ]))
                     story.append(response_box)
-
+                
                 story.append(Spacer(1, 12))
-
+            
             story.append(Spacer(1, 10))
-
+        
         # Declaration (for empty forms)
         if empty_form:
             story.append(Spacer(1, 20))
-            story.append(HRFlowable(width="100%", thickness=1,
-                         color=MAYBANK_COLORS["light_gray"], spaceAfter=15))
-            story.append(Paragraph("<b>DECLARATION</b>",
-                         self.styles['SectionHeader']))
+            story.append(HRFlowable(width="100%", thickness=1, color=MAYBANK_COLORS["light_gray"], spaceAfter=15))
+            story.append(Paragraph("<b>DECLARATION</b>", self.styles['SectionHeader']))
             story.append(Paragraph(
                 "I hereby declare that the information provided above is true and accurate to the best of my knowledge. "
                 "I understand that providing false or misleading information may result in the termination of services "
@@ -2229,7 +2199,7 @@ class ECDDExporter:
                 self.styles['MaybankBody']
             ))
             story.append(Spacer(1, 20))
-
+            
             sig_data = [
                 [
                     Paragraph("<b>Signature:</b>", self.styles['FieldLabel']),
@@ -2251,9 +2221,8 @@ class ECDDExporter:
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
             ]))
             story.append(sig_table)
-
-        doc.build(story, onFirstPage=self._on_first_page,
-                  onLaterPages=self._on_page)
+        
+        doc.build(story, onFirstPage=self._on_first_page, onLaterPages=self._on_page)
         return filepath
 
     # -------------------------------------------------------------------------
@@ -2267,16 +2236,16 @@ class ECDDExporter:
     ) -> Dict[str, str]:
         """
         Export all documents for a session with Maybank branding.
-
+        
         Args:
             session: The questionnaire session containing all data
             save_to_volumes: Whether to save to Databricks Volumes
-
+            
         Returns:
             Dict with paths to all generated files
         """
         paths = {}
-
+        
         # 1. ECDD Assessment
         if session.ecdd_assessment:
             try:
@@ -2286,12 +2255,11 @@ class ECDDExporter:
                     save_to_volumes=save_to_volumes
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to export Assessment PDF: {e}", exc_info=True)
+                logger.error(f"Failed to export Assessment PDF: {e}", exc_info=True)
                 paths['assessment_fallback'] = self._export_assessment_as_json(
                     session.ecdd_assessment, session, None
                 )
-
+        
         # 2. Document Checklist
         if session.document_checklist:
             try:
@@ -2301,12 +2269,11 @@ class ECDDExporter:
                     save_to_volumes=save_to_volumes
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to export Checklist PDF: {e}", exc_info=True)
+                logger.error(f"Failed to export Checklist PDF: {e}", exc_info=True)
                 paths['checklist_fallback'] = self._export_checklist_as_json(
                     session.document_checklist, session, None
                 )
-
+        
         # 3. Questionnaires (Filled and Empty)
         if session.questionnaire:
             try:
@@ -2319,20 +2286,18 @@ class ECDDExporter:
                     empty_form=True
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to export Questionnaire PDF: {e}", exc_info=True)
+                logger.error(f"Failed to export Questionnaire PDF: {e}", exc_info=True)
                 paths['questionnaire_fallback'] = self._export_questionnaire_as_json(
                     session.questionnaire, session.responses, None
                 )
-
+        
         # 4. JSON Summary (Always generate as backup)
         try:
             paths['summary_json'] = self._export_summary_json(session)
         except Exception as e:
             logger.error(f"Failed to export JSON Summary: {e}", exc_info=True)
-
-        logger.info(
-            f"Export All complete. Files generated: {list(paths.keys())}")
+        
+        logger.info(f"Export All complete. Files generated: {list(paths.keys())}")
         return paths
 
     # -------------------------------------------------------------------------
@@ -2345,7 +2310,7 @@ class ECDDExporter:
             self.output_dir,
             f"session_summary_{session.session_id[:8]}.json"
         )
-
+        
         summary = {
             "session_id": session.session_id,
             "customer_id": session.customer_id,
@@ -2356,50 +2321,50 @@ class ECDDExporter:
             "exported_by": self.BANK_NAME,
             "export_timestamp": datetime.now(timezone.utc).isoformat(),
         }
-
+        
         if session.ecdd_assessment:
             summary["ecdd_assessment"] = session.ecdd_assessment.model_dump()
-
+        
         if session.document_checklist:
             summary["document_checklist"] = session.document_checklist.model_dump()
-
+        
         if session.responses:
             summary["questionnaire_responses"] = session.responses
-
+        
         with open(filepath, 'w') as f:
             json.dump(summary, f, indent=2, default=str)
-
+        
         return filepath
-
+    
     def _export_assessment_as_json(self, assessment, session, filename) -> str:
         """Fallback: Export assessment as JSON."""
         filename = filename or f"ecdd_assessment_{session.session_id[:8]}.json"
         filepath = os.path.join(self.output_dir, filename)
-
+        
         with open(filepath, 'w') as f:
             json.dump(assessment.model_dump(), f, indent=2, default=str)
-
+        
         return filepath
-
+    
     def _export_checklist_as_json(self, checklist, session, filename) -> str:
         """Fallback: Export checklist as JSON."""
         filename = filename or f"document_checklist_{session.session_id[:8]}.json"
         filepath = os.path.join(self.output_dir, filename)
-
+        
         with open(filepath, 'w') as f:
             json.dump(checklist.model_dump(), f, indent=2, default=str)
-
+        
         return filepath
-
+    
     def _export_questionnaire_as_json(self, questionnaire, responses, filename) -> str:
         """Fallback: Export questionnaire as JSON."""
         filename = filename or f"questionnaire_{questionnaire.questionnaire_id[:8]}.json"
         filepath = os.path.join(self.output_dir, filename)
-
+        
         data = questionnaire.model_dump()
         data['responses'] = responses or {}
-
+        
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2, default=str)
-
+        
         return filepath
