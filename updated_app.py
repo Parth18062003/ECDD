@@ -711,6 +711,7 @@ def generate_ecdd_questionnaire(aml_json: str, customer_name: str = "", case_id:
     """
     Generate dynamic ECDD questionnaire using LLM based on AML findings.
     Uses the full questionnaire_agent.py prompt for profile-aware questions.
+    Includes fallback questions when client type cannot be determined.
     """
     prompt = f"""
 You are an intelligent ECDD (Enhanced Client Due Diligence) Data Collection System.
@@ -718,13 +719,22 @@ Your goal is to generate a personalized questionnaire for the CLIENT to complete
 
 DYNAMIC QUESTIONNAIRE LOGIC (MANDATORY)
 You must analyze the client's profile and dynamically determine the content of the questionnaire. 
-Do not use a static template. Adapt the sections and questions based on the following logic:
 
 1.  **Profile Inference:**
     Analyze the client's occupation, employment status, and source of income to determine their primary archetype 
     (e.g., Employee, Business Owner, Trust Beneficiary).
 
-2.  **Contextual Section Generation:**
+2.  **IMPORTANT - When Client Type is Unclear:**
+    If you CANNOT confidently determine the client type from the AML data, you MUST:
+    - Set client_type to "Unknown - Requires Clarification"
+    - Include a FIRST section called "Client Profile Clarification" with these mandatory questions:
+      a) "Which of the following best describes your primary occupation?" (dropdown: Employed, Self-Employed/Business Owner, Trust Beneficiary)
+      b) "If employed, please provide your current employer name and your role/title" (text)
+      c) "If self-employed or a business owner, please describe your business and your role" (textarea)
+      d) "What is your primary source of income?" (dropdown: Salary/Wages, Business Profits, Investments/Dividends, Rental Income, Pension, Inheritance, Trust Distributions, Other)
+      e) "Please briefly describe how you accumulated your current wealth over your career" (textarea)
+
+3.  **Contextual Section Generation:**
     Create 4-6 sections that make sense for this specific archetype.
     • If the client is a **Business Owner/Entrepreneur**: Focus sections on "Business Activities," "Ownership Structure," and "Company Details." 
       Do NOT ask for "Employer Name" or "Employment History."
@@ -732,15 +742,15 @@ Do not use a static template. Adapt the sections and questions based on the foll
       Do NOT ask for "Company Financials" or "Shareholding structure" unless relevant.
     • If the client is a **Trust Beneficiary**: Focus sections on "Trust Structure," "Settlors," and "Trustees."
 
-3.  **Irrelevance Filtering:**
+4.  **Irrelevance Filtering:**
     Strictly exclude any questions that are logically incompatible with the client's status. 
-    (e.g., Do not ask a Business Owner who works for themselves for a "Current Employer Name".)
 
 CORE PRINCIPLES
 1.  **DATA COLLECTION ONLY:** You are collecting data for ECDD verification. Do NOT perform risk assessments.
 2.  **AUDIENCE:** Address the client directly using "you" and "your."
-3.  **INFORMATION GAPS:** Do not ask for data already explicitly present in the provided profile.
-4.  **SCOPE:** Focus on Identity, Source of Wealth (SoW), Source of Funds (SoF), Financial Position, and Compliance Declarations.
+3.  **CONVERSATIONAL TONE:** Questions should feel like a natural conversation, not an interrogation.
+4.  **INFORMATION GAPS:** Do not ask for data already explicitly present in the provided profile.
+5.  **SCOPE:** Focus on Identity, Source of Wealth (SoW), Source of Funds (SoF), Financial Position, and Compliance Declarations.
 
 INPUT DATA:
 Customer Name: {customer_name}
@@ -751,24 +761,25 @@ STRICT CONSTRAINTS
 • **Total Questions:** 15 to 25 questions.
 • **Section Count:** 4 to 6 sections.
 • **JSON Format:** Valid JSON only. No markdown blocks.
+• **Always include descriptive help_text** for each question to guide the client.
 
 OUTPUT FORMAT (JSON only):
 {{
-  "client_type": "Inferred Type (e.g., Business Owner, Employee, Trust Beneficiary)",
+  "client_type": "Inferred Type OR 'Unknown - Requires Clarification' if unclear",
   "sections": [
     {{
       "section_id": "string_unique_id",
       "section_title": "string (Context-aware, e.g., Business Ownership)",
-      "section_description": "string (Why this is relevant to their specific profile)",
+      "section_description": "string (Why this is relevant and what information we need)",
       "section_icon": "emoji",
       "order": 1,
       "questions": [
         {{
           "field_id": "string_unique_field_id",
-          "question_text": "string (Direct question to the client)",
+          "question_text": "string (Direct, conversational question to the client)",
           "question_type": "text | textarea | dropdown | multiple_choice | checkbox | date | number | currency | yes_no",
           "required": true,
-          "help_text": "string",
+          "help_text": "string (Helpful guidance on how to answer)",
           "options": ["Option A", "Option B"],
           "category": "identity | sow | sof | business | financial | compliance",
           "aml_relevant": true
@@ -794,25 +805,28 @@ def generate_ecdd_assessment(
 ) -> tuple:
     """
     Generate full ECDD assessment report, document checklist, and RM guidance using LLM.
-    Uses the reporter_agent.py prompt for comprehensive output.
+    Uses the reporter_agent.py prompt for comprehensive output with detailed narratives.
     Returns: (ECDDAssessment, DocumentChecklist)
     """
-    # Format responses for prompt
+    # Format responses for prompt with question context
     responses_text = "\n".join(
         [f"- {k}: {v}" for k, v in responses.items() if v])
 
     prompt = f"""
-You are an ECDD (Enhanced Client Due Diligence) Data Verification and Reporting Specialist for a major bank.
+You are an ECDD (Enhanced Client Due Diligence) Data Verification and Reporting Specialist for a major international bank.
 
-Your role is to analyze questionnaire responses and generate:
-1. A factual ECDD Summary Report
-2. A structured document checklist
-3. Compliance status flags for factual screening (e.g., PEP detection, Sanctions detection)
-4. Guidance for the Relationship Manager (RM)
+Your role is to analyze questionnaire responses and generate COMPREHENSIVE, DETAILED outputs:
+1. A thorough ECDD Summary Report with detailed narrative sections
+2. A structured document checklist with specific instructions
+3. Compliance status flags for factual screening (PEP, Sanctions, Adverse Media, etc.)
+4. Detailed guidance for the Relationship Manager (RM)
 
-IMPORTANT CONSTRAINTS:
-• Focus strictly on verifying data, summarizing facts, and identifying missing information.
-• Provide actionable recommendations.
+CRITICAL REQUIREMENTS FOR DESCRIPTIVE OUTPUT:
+• Each section MUST contain multiple sentences with specific details
+• Use professional banking language and terminology
+• Include specific observations from the data provided
+• Provide reasoning for risk classifications
+• Be thorough - this report will be used for regulatory compliance
 
 INPUT DATA:
 Customer: {customer_name}
@@ -824,21 +838,58 @@ AML SCREENING RESULTS:
 QUESTIONNAIRE RESPONSES:
 {responses_text if responses_text else "No responses provided yet."}
 
-ECDD SUMMARY REPORT FORMAT
-Generate a professional summary report with these sections:
-1. CLIENT IDENTIFICATION (Summary of provided details)
+ECDD SUMMARY REPORT FORMAT (DETAILED):
+Generate a professional, comprehensive summary report with these sections:
+
+1. CLIENT IDENTIFICATION
+   - Full name, aliases, date of birth, nationality, residency
+   - Unique identifiers verified
+   - Current status and relationship with the bank
+
 2. CLIENT TYPE CLASSIFICATION
-3. SOURCE OF WEALTH SUMMARY (Factual summary based on responses)
-4. SOURCE OF FUNDS SUMMARY (Factual summary based on responses)
-5. COMPLIANCE SCREENING STATUS (Factual detection: Is PEP? Is Sanctioned? Adverse Media found?)
-6. ADVISOR RECOMMENDATIONS (Next steps based on data gaps or clarifications needed)
+   - Classification rationale based on occupation, income sources, and business activities
+   - Why this classification was determined
+   - Any dual classifications if applicable
+
+3. SOURCE OF WEALTH (SOW) ANALYSIS
+   - Detailed narrative of how the client accumulated their wealth over time
+   - Career progression and income history
+   - Major assets and how they were acquired
+   - Inheritance, gifts, or windfalls if applicable
+   - Assessment of whether SOW is adequately explained
+
+4. SOURCE OF FUNDS (SOF) ANALYSIS
+   - Current and ongoing sources of funds
+   - Employment income details with figures if provided
+   - Business income with nature of business
+   - Investment income and portfolio details
+   - Any other fund sources
+   - Assessment of whether SOF is adequately explained
+
+5. COMPLIANCE SCREENING RESULTS
+   - PEP Status: Detailed explanation if PEP or connected to PEP
+   - Sanctions Screening: Results and any matches found
+   - Adverse Media: Summary of any negative news findings
+   - High-Risk Jurisdiction Exposure: Countries involved and risk level
+   - Watchlist Status: Any matches and their relevance
+
+6. RISK ASSESSMENT RATIONALE
+   - Why the overall risk level was determined
+   - Key factors contributing to risk classification
+   - Mitigating factors if any
+
+7. RECOMMENDATIONS & NEXT STEPS
+   - Specific actions required before account approval/continuation
+   - Documents needed with priority levels
+   - Questions for follow-up with client
+   - Ongoing monitoring requirements
 
 OUTPUT AS TWO JSON BLOCKS:
 
 FIRST JSON BLOCK - ASSESSMENT:
 {{
-    "client_type": "High Net Worth Individual | Corporate | Trust | ...",
-    "client_category": "Individual | Corporate | Trust | ...",
+    "client_type": "High Net Worth Individual | Corporate Entity | Trust | Private Banking Client | etc.",
+    "client_category": "Individual | Corporate | Trust | Foundation | etc.",
     "overall_ecdd_level": "LOW | MEDIUM | HIGH",
     "compliance_flags": {{
         "pep": true/false,
@@ -851,36 +902,44 @@ FIRST JSON BLOCK - ASSESSMENT:
         "complex_ownership": true/false
     }},
     "source_of_wealth": {{
-        "summary": "Detailed factual summary of how wealth was accumulated..."
+        "summary": "Comprehensive multi-paragraph narrative detailing how the client accumulated their wealth. Include career history, asset acquisition timeline, inheritance details, and any major wealth events. This should be 3-5 sentences minimum with specific details from the questionnaire responses."
     }},
     "source_of_funds": {{
-        "summary": "Detailed factual summary of current fund sources..."
+        "summary": "Comprehensive multi-paragraph narrative detailing the client's current sources of funds. Include employment income, business profits, investment returns, rental income, etc. This should be 3-5 sentences minimum with specific details."
     }},
-    "recommendations": ["action 1", "action 2"],
-    "required_actions": ["action 1", "action 2"],
-    "report_text": "Full formal narrative report text suitable for PDF export. Include all sections in professional format.",
-    "rm_guidance": "Detailed guidance for the Relationship Manager on how to proceed with this case, including talking points, areas to probe further, and compliance considerations."
+    "recommendations": [
+        "Specific recommendation 1 with context",
+        "Specific recommendation 2 with context",
+        "Specific recommendation 3 with context"
+    ],
+    "required_actions": [
+        "Mandatory action 1 before proceeding",
+        "Mandatory action 2 before proceeding"
+    ],
+    "report_text": "FULL FORMAL NARRATIVE REPORT - This should be a complete, multi-paragraph professional report suitable for regulatory review. Include all seven sections above in a flowing narrative format. Each section should have a header and detailed content. Aim for 500+ words covering all aspects of the ECDD review. Use formal banking language.",
+    "rm_guidance": "DETAILED RELATIONSHIP MANAGER GUIDANCE - Provide comprehensive guidance including: (1) Key talking points for client discussion, (2) Specific areas requiring clarification, (3) Red flags to monitor, (4) Suggested questions for follow-up meeting, (5) Timeline recommendations, (6) Escalation triggers if applicable. This should be 4-6 sentences minimum with actionable items."
 }}
 
 SECOND JSON BLOCK - DOCUMENT CHECKLIST:
 {{
     "identity_documents": [
-        {{"document_name": "...", "priority": "required|recommended|optional", "category": "identity", "special_instructions": "..."}}
+        {{"document_name": "Valid government-issued photo ID (passport/national ID)", "priority": "required", "category": "identity", "special_instructions": "Must be current and unexpired. Verify photo matches client. Check for signs of tampering."}}
     ],
     "source_of_wealth_documents": [
-        {{"document_name": "...", "priority": "required|recommended|optional", "category": "sow", "special_instructions": "..."}}
+        {{"document_name": "Employment contracts and salary statements for past 3 years", "priority": "required", "category": "sow", "special_instructions": "Should show progression of income. Verify employer legitimacy independently."}}
     ],
     "source_of_funds_documents": [
-        {{"document_name": "...", "priority": "required|recommended|optional", "category": "sof", "special_instructions": "..."}}
+        {{"document_name": "Last 3 months bank statements showing regular income deposits", "priority": "required", "category": "sof", "special_instructions": "Ensure all large deposits are explainable. Check for unusual patterns."}}
     ],
     "compliance_documents": [
-        {{"document_name": "...", "priority": "required|recommended|optional", "category": "compliance", "special_instructions": "..."}}
+        {{"document_name": "Signed FATCA/CRS self-certification form", "priority": "required", "category": "compliance", "special_instructions": "Ensure all sections completed. Verify tax residency claims."}}
     ],
     "additional_documents": [
-        {{"document_name": "...", "priority": "required|recommended|optional", "category": "other", "special_instructions": "..."}}
+        {{"document_name": "Proof of address dated within 3 months", "priority": "required", "category": "other", "special_instructions": "Utility bill or bank statement. Must match declared address."}}
     ]
 }}
 
+IMPORTANT: Generate detailed, specific content for each field. Do not use generic placeholders.
 Return both JSON blocks. No markdown fences.
 """
     raw = call_model(prompt)
@@ -948,6 +1007,7 @@ def save_ecdd_to_delta(
     """
     Save structured ECDD output to Delta table.
     Matches the databricks.py write_ecdd_output structure.
+    Returns session_id on success, empty string on failure.
     """
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -955,7 +1015,7 @@ def save_ecdd_to_delta(
     def esc(val: str) -> str:
         return (str(val) if val else "").replace("'", "''")
 
-    # Build structured JSON columns
+    # Build structured JSON columns - ecdd_level is stored INSIDE ecdd_assessment_json
     compliance_flags_json = json.dumps(
         assessment.compliance_flags.to_dict()).replace("'", "''")
 
@@ -981,15 +1041,15 @@ def save_ecdd_to_delta(
 
     questionnaire_responses_json = json.dumps(responses).replace("'", "''")
 
+    # Note: No standalone ecdd_level column - it's inside ecdd_assessment_json
     statement = f"""
         INSERT INTO {ECDD_CONFIG['ecdd_reports_table']}
-        (session_id, case_id, customer_name, ecdd_level, compliance_flags_json, 
+        (session_id, case_id, customer_name, compliance_flags_json, 
          ecdd_assessment_json, document_checklist_json, questionnaire_responses_json, status, created_at, updated_at)
         VALUES (
             '{session_id}',
             '{esc(case_id)}',
             '{esc(customer_name)}',
-            '{esc(assessment.overall_ecdd_level)}',
             '{compliance_flags_json}',
             '{ecdd_assessment_json}',
             '{document_checklist_json}',
@@ -999,8 +1059,12 @@ def save_ecdd_to_delta(
             '{now}'
         )
     """
-    execute_sql(statement)
-    return session_id
+    try:
+        execute_sql(statement)
+        return session_id
+    except Exception as e:
+        st.error(f"❌ Failed to save to Delta table: {e}")
+        return ""
 
 
 # ============================================================
@@ -1581,15 +1645,16 @@ if page == "2️⃣ ECDD Screening (Source of Wealth)":
                         st.session_state.ecdd_checklist = checklist
 
                         # Save to Delta
-                        try:
-                            session_id = save_ecdd_to_delta(
-                                case, customer_name, assessment, checklist, responses
-                            )
+                        session_id = save_ecdd_to_delta(
+                            case, customer_name, assessment, checklist, responses
+                        )
+                        if session_id:
                             st.session_state.ecdd_session_id = session_id
                             st.success(
-                                f"Assessment saved to Delta! Session: {session_id[:8]}...")
-                        except Exception as e:
-                            st.warning(f"Delta save failed: {e}")
+                                f"✅ Assessment saved to Delta! Session: {session_id[:8]}...")
+                        else:
+                            st.warning(
+                                "⚠️ Assessment generated but Delta save failed. Check table schema and connection.")
 
                     st.rerun()
             else:
