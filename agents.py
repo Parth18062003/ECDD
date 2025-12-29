@@ -22,9 +22,10 @@ from .schemas import (
     SessionStatus,
 )
 from .questionnaire_agent import QuestionnaireGeneratorAgent
-    # (async agent)
+# (async agent)
 from .reporter_agent import ReporterValidatorAgent
-    # (async agent)
+# (async agent)
+
 
 class ECDDAgentCoordinator:
     """
@@ -106,7 +107,8 @@ class ECDDAgentCoordinator:
             questionnaire=questionnaire
         )
         self._sessions[session_id] = session
-        print(f"Created session {session_id} with {questionnaire.get_total_questions()} questions")
+        print(
+            f"Created session {session_id} with {questionnaire.get_total_questions()} questions")
         return session
 
     async def submit_responses(
@@ -130,8 +132,13 @@ class ECDDAgentCoordinator:
         session.status = SessionStatus.RESPONSES_SUBMITTED
         session.updated_at = datetime.now(timezone.utc).isoformat()
 
-        # Reconstruct client profile from session
+        # Reconstruct client profile from session and enrich with questionnaire answers
+        # so both questionnaire + report are based on the same unified facts.
         client_profile = ClientProfile(**session.client_profile)
+        client_profile.apply_questionnaire_responses(responses)
+
+        # Persist enriched profile back into the session
+        session.client_profile = client_profile.model_dump()
 
         # Agent 2: Generate assessment and checklist (async)
         assessment, checklist = await self._reporter_agent.generate_assessment(
@@ -140,13 +147,22 @@ class ECDDAgentCoordinator:
             session_id=session_id
         )
 
+        # If structured parsing failed to populate client type, fall back to the
+        # questionnaire's inferred client_type to keep the UI consistent.
+        try:
+            if (not assessment.client_type) and session.questionnaire and session.questionnaire.client_type:
+                assessment.client_type = session.questionnaire.client_type
+        except Exception:
+            pass
+
         # Update session
         session.ecdd_assessment = assessment
         session.document_checklist = checklist
         session.status = SessionStatus.REPORTS_GENERATED
         session.updated_at = datetime.now(timezone.utc).isoformat()
 
-        print(f"Generated assessment for session {session_id}: {assessment.overall_ecdd_rating.value}")
+        print(
+            f"Generated assessment for session {session_id}: {assessment.overall_ecdd_rating.value}")
         return assessment, checklist
 
     async def get_ecdd_output(self, session_id: str) -> ECDDOutput:
@@ -162,7 +178,8 @@ class ECDDAgentCoordinator:
 
         session = self._sessions[session_id]
         if not session.ecdd_assessment or not session.document_checklist:
-            raise ValueError("Assessment not yet generated. Call submit_responses first.")
+            raise ValueError(
+                "Assessment not yet generated. Call submit_responses first.")
 
         return ECDDOutput(
             session_id=session_id,
@@ -332,7 +349,8 @@ class ECDDAgentCoordinator:
             parent_session_id=session_id
         )
         self._sessions[followup_session_id] = followup_session
-        print(f"Created follow-up session {followup_session_id} linked to {session_id}")
+        print(
+            f"Created follow-up session {followup_session_id} linked to {session_id}")
         return followup_session_id, followup
 
     async def submit_followup_responses(
@@ -359,7 +377,8 @@ class ECDDAgentCoordinator:
 
         parent_session = self._sessions.get(followup_session.parent_session_id)
         if not parent_session:
-            raise ValueError(f"Parent session {followup_session.parent_session_id} not found")
+            raise ValueError(
+                f"Parent session {followup_session.parent_session_id} not found")
 
         # Merge responses: original + follow-up (follow-up takes precedence)
         combined_responses = {**(parent_session.responses or {}), **responses}
@@ -380,7 +399,8 @@ class ECDDAgentCoordinator:
         followup_session.status = SessionStatus.REPORTS_GENERATED
         followup_session.updated_at = datetime.now(timezone.utc).isoformat()
 
-        print(f"Updated assessment for follow-up session {followup_session_id}")
+        print(
+            f"Updated assessment for follow-up session {followup_session_id}")
         return assessment, checklist
 
     async def get_customer_history(
@@ -497,6 +517,17 @@ class ECDDAgentCoordinator:
         """List all sessions."""
         return list(self._sessions.values())
 
+    def upsert_session(self, session: QuestionnaireSession) -> None:
+        """Insert or replace a session in the coordinator cache.
+
+        Streamlit persistence uses `ECDDSessionManager` (disk JSON). The agents keep
+        sessions in-memory. When resuming an older session from disk, the UI must
+        hydrate the coordinator so follow-on actions (queries/export/review) work.
+        """
+        if not session or not getattr(session, "session_id", None):
+            return
+        self._sessions[session.session_id] = session
+
     def get_status(self) -> Dict[str, Any]:
         """Get coordinator and agent status."""
         return {
@@ -508,10 +539,12 @@ class ECDDAgentCoordinator:
             "reporter_agent": self._reporter_agent.get_status()
         }
 
+
 # =============================================================================
 # SINGLETON ACCESSOR
 # =============================================================================
 _coordinator_instance: Optional[ECDDAgentCoordinator] = None
+
 
 def get_coordinator(project_endpoint: str = None) -> ECDDAgentCoordinator:
     """Get singleton coordinator instance."""

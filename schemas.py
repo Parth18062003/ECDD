@@ -8,6 +8,7 @@ Design Principles:
 4. No orchestrator dependencies
 """
 
+import json
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from enum import Enum
@@ -28,7 +29,7 @@ class ProfileFieldConfig:
     default: Any = None
 
 
-@dataclass  
+@dataclass
 class ProfileConfig:
     """
     Configuration for client profile structure.
@@ -36,18 +37,27 @@ class ProfileConfig:
     """
     # Identity fields - add/remove/modify as needed
     identity_fields: List[ProfileFieldConfig] = field(default_factory=lambda: [
-        ProfileFieldConfig("customer_id", ["case_id", "customer_id", "client_id"], required=True),
-        ProfileFieldConfig("full_name", ["customer_name", "full_name", "fullName", "name"], required=True),
-        ProfileFieldConfig("nationality", ["nationality", "country_of_citizenship"]),
-        ProfileFieldConfig("residence_country", ["residence_country", "country_of_residence", "residence"]),
+        ProfileFieldConfig(
+            "customer_id", ["case_id", "customer_id", "client_id"], required=True),
+        ProfileFieldConfig(
+            "full_name", ["customer_name", "full_name", "fullName", "name"], required=True),
+        ProfileFieldConfig(
+            "nationality", ["nationality", "country_of_citizenship"]),
+        ProfileFieldConfig("residence_country", [
+                           "residence_country", "country_of_residence", "residence"]),
         ProfileFieldConfig("dob", ["dob", "date_of_birth", "birth_date"]),
-        ProfileFieldConfig("id_type", ["id_type", "document_type", "identification_type"]),
-        ProfileFieldConfig("id_number", ["id_number", "document_number", "identification_number"]),
-        ProfileFieldConfig("known_aliases", ["known_aliases", "aliases", "aka"]),
-        ProfileFieldConfig("risk_segment", ["risk_segment", "client_segment", "segment"]),
-        ProfileFieldConfig("is_etb", ["is_etb", "existing_to_bank", "etb_flag"]),
+        ProfileFieldConfig(
+            "id_type", ["id_type", "document_type", "identification_type"]),
+        ProfileFieldConfig(
+            "id_number", ["id_number", "document_number", "identification_number"]),
+        ProfileFieldConfig("known_aliases", [
+                           "known_aliases", "aliases", "aka"]),
+        ProfileFieldConfig(
+            "risk_segment", ["risk_segment", "client_segment", "segment"]),
+        ProfileFieldConfig(
+            "is_etb", ["is_etb", "existing_to_bank", "etb_flag"]),
     ])
-    
+
     # Nested data sections - keys to look for in aml_json
     pep_keys: List[str] = field(default_factory=lambda: [
         "pep_screening_status", "pepScreeningStatus", "pep_status", "pep", "pep_screening"
@@ -98,6 +108,7 @@ class ECDDLevel(str, Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
+
 # Alias for backward compatibility
 RiskLevel = ECDDLevel
 
@@ -138,7 +149,7 @@ class IdentityProfile(BaseModel):
     id_number: Optional[str] = None
     is_etb: Optional[bool] = None
     risk_segment: Optional[str] = None
-    
+
     class Config:
         extra = "allow"  # Allow additional fields not defined here
 
@@ -152,7 +163,7 @@ class PEPStatus(BaseModel):
     relationship_type: Optional[str] = None  # direct, family, associate
     last_verified: Optional[str] = None
     notes: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -164,7 +175,7 @@ class SanctionHit(BaseModel):
     match_confidence: Optional[float] = None
     program: Optional[str] = None
     notes: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -179,7 +190,7 @@ class AdverseNewsItem(BaseModel):
     category: Optional[str] = None  # fraud, corruption, crime, etc.
     sentiment: Optional[str] = None
     risk_level: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -190,7 +201,7 @@ class Relationship(BaseModel):
     relationship_type: Optional[str] = None
     connected_id: Optional[str] = None
     notes: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -201,7 +212,7 @@ class Account(BaseModel):
     account_type: Optional[str] = None
     status: Optional[str] = None
     opened_date: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -209,41 +220,41 @@ class Account(BaseModel):
 class ClientProfile(BaseModel):
     """
     Complete client profile for ECDD assessment.
-    
+
     This model is flexible - fields can be easily added/removed via ProfileConfig.
     All nested lists accept any structure for maximum compatibility.
     """
     customer_id: str
     customer_name: str
-    
+
     # Core identity
     identity: IdentityProfile = Field(default_factory=IdentityProfile)
-    
+
     # AML screening results
     pep_status: List[PEPStatus] = Field(default_factory=list)
     sanctions: List[SanctionHit] = Field(default_factory=list)
     adverse_news: List[AdverseNewsItem] = Field(default_factory=list)
     watchlist_hits: List[Dict[str, Any]] = Field(default_factory=list)
-    
+
     # Relationships and accounts
     relationships: List[Relationship] = Field(default_factory=list)
     accounts: List[Account] = Field(default_factory=list)
-    
+
     # Source metadata
     document_type: Optional[str] = None
     risk_score: Optional[float] = None
     created_at: Optional[str] = None
-    
+
     # Raw data for anything not mapped above
     raw_data: Dict[str, Any] = Field(default_factory=dict)
-    
+
     class Config:
         extra = "allow"
-    
+
     @classmethod
     def from_databricks_row(
-        cls, 
-        row: Dict[str, Any], 
+        cls,
+        row: Dict[str, Any],
         config: ProfileConfig = None
     ) -> "ClientProfile":
         """
@@ -251,7 +262,7 @@ class ClientProfile(BaseModel):
         Uses ProfileConfig to handle various source field names.
         """
         config = config or DEFAULT_PROFILE_CONFIG
-        
+
         def get_value(data: Dict, keys: List[str], default=None):
             """Get value from dict trying multiple possible keys."""
             for key in keys:
@@ -261,7 +272,7 @@ class ClientProfile(BaseModel):
                 if key.lower() in data:
                     return data[key.lower()]
             return default
-        
+
         def ensure_list(val):
             """Ensure value is a list."""
             if val is None:
@@ -271,7 +282,7 @@ class ClientProfile(BaseModel):
             if isinstance(val, list):
                 return val
             return []
-        
+
         # Parse aml_json column
         import json
         aml_data = row.get("aml_json", {})
@@ -282,44 +293,199 @@ class ClientProfile(BaseModel):
                 aml_data = {}
         if not isinstance(aml_data, dict):
             aml_data = {}
-        
+
+        # Support AML JSON payloads that follow the AMLKYCReport schema.
+        # This keeps downstream logic consistent (PEP/Sanctions/Adverse/Relationships).
+        aml_kyc_report = aml_data.get(
+            "AMLKYCReport") if isinstance(aml_data, dict) else None
+        if isinstance(aml_kyc_report, dict):
+            # Customer name may be present here.
+            customer_name_from_aml = aml_data.get("CustomerName")
+            if customer_name_from_aml and not row.get("customer_name"):
+                row = dict(row)
+                row["customer_name"] = customer_name_from_aml
+
+            # Map PEP risk assessment into the canonical pep_status list.
+            pep_assessment = aml_kyc_report.get("PEPRiskAssessment")
+            if isinstance(pep_assessment, dict):
+                aml_data.setdefault("pep_status", [])
+                aml_data["pep_status"] = [
+                    {
+                        "is_pep": bool(pep_assessment.get("IsPEP", False)),
+                        "pep_type": pep_assessment.get("Reason") or None,
+                        "notes": pep_assessment.get("Rationale") or None,
+                        "risk_level": pep_assessment.get("RiskLevel") or None,
+                    }
+                ]
+
+            # Map sanctions summary into the canonical sanctions list.
+            sanctions_summary = aml_kyc_report.get("SanctionsSummary")
+            if isinstance(sanctions_summary, dict):
+                results = sanctions_summary.get("Results")
+                hits = []
+                if isinstance(results, dict):
+                    if results.get("UN") is True:
+                        hits.append({"list_name": "UN"})
+                    if results.get("OFAC") is True:
+                        hits.append({"list_name": "OFAC"})
+                    eu = results.get("EU")
+                    if isinstance(eu, list) and eu:
+                        hits.extend({"list_name": "EU", "notes": str(item)}
+                                    for item in eu)
+                if hits:
+                    aml_data["sanctions"] = hits
+
+            # Map adverse news summary into the canonical adverse_news list.
+            adverse_summary = aml_kyc_report.get("AdverseNewsSummary")
+            if isinstance(adverse_summary, dict):
+                adverse_results = adverse_summary.get("Results")
+                if isinstance(adverse_results, list) and adverse_results:
+                    aml_data["adverse_news"] = adverse_results
+
+            # Map connected persons into relationships.
+            connected = aml_kyc_report.get("ConnectedPersons")
+            if isinstance(connected, dict):
+                connected_results = connected.get("Results")
+                if isinstance(connected_results, list) and connected_results:
+                    aml_data["relationships"] = [
+                        {
+                            "name": p.get("Name"),
+                            "relationship_type": p.get("Relationship"),
+                            "notes": (f"RiskLevel: {p.get('RiskLevel')}" if p.get("RiskLevel") else None),
+                        }
+                        for p in connected_results
+                        if isinstance(p, dict)
+                    ]
+
         # Extract identity fields using config
         identity_dict = {}
         for field_cfg in config.identity_fields:
-            val = get_value(row, field_cfg.source_keys) or get_value(aml_data, field_cfg.source_keys)
+            val = get_value(row, field_cfg.source_keys) or get_value(
+                aml_data, field_cfg.source_keys)
             if val is not None:
                 identity_dict[field_cfg.name] = val
             elif field_cfg.default is not None:
                 identity_dict[field_cfg.name] = field_cfg.default
-        
+
         # Get customer_id and customer_name
-        customer_id = str(get_value(row, ["case_id", "customer_id"]) or identity_dict.get("customer_id", ""))
-        customer_name = str(get_value(row, ["customer_name"]) or identity_dict.get("full_name", ""))
-        
+        customer_id = str(get_value(
+            row, ["case_id", "customer_id"]) or identity_dict.get("customer_id", ""))
+        customer_name = str(
+            get_value(row, ["customer_name"]) or identity_dict.get("full_name", ""))
+
         # Parse nested sections
         pep_data = ensure_list(get_value(aml_data, config.pep_keys))
-        sanctions_data = ensure_list(get_value(aml_data, config.sanctions_keys))
-        adverse_data = ensure_list(get_value(aml_data, config.adverse_news_keys))
-        relationships_data = ensure_list(get_value(aml_data, config.relationships_keys))
+        sanctions_data = ensure_list(
+            get_value(aml_data, config.sanctions_keys))
+        adverse_data = ensure_list(
+            get_value(aml_data, config.adverse_news_keys))
+        relationships_data = ensure_list(
+            get_value(aml_data, config.relationships_keys))
         accounts_data = ensure_list(get_value(aml_data, config.accounts_keys))
-        watchlist_data = ensure_list(get_value(aml_data, config.watchlist_keys))
-        
+        watchlist_data = ensure_list(
+            get_value(aml_data, config.watchlist_keys))
+
+        # Coerce risk_score safely (tables sometimes store strings like "MEDIUM")
+        risk_score_val = row.get("risk_score")
+        if isinstance(risk_score_val, str):
+            try:
+                risk_score_val = float(risk_score_val)
+            except Exception:
+                risk_score_val = None
+
         return cls(
             customer_id=customer_id,
             customer_name=customer_name,
             identity=IdentityProfile(**identity_dict),
-            pep_status=[PEPStatus(**p) if isinstance(p, dict) else PEPStatus() for p in pep_data],
-            sanctions=[SanctionHit(**s) if isinstance(s, dict) else SanctionHit() for s in sanctions_data],
-            adverse_news=[AdverseNewsItem(**a) if isinstance(a, dict) else AdverseNewsItem() for a in adverse_data],
+            pep_status=[PEPStatus(**p) if isinstance(p, dict)
+                        else PEPStatus() for p in pep_data],
+            sanctions=[SanctionHit(**s) if isinstance(s, dict)
+                       else SanctionHit() for s in sanctions_data],
+            adverse_news=[AdverseNewsItem(
+                **a) if isinstance(a, dict) else AdverseNewsItem() for a in adverse_data],
             watchlist_hits=watchlist_data,
-            relationships=[Relationship(**r) if isinstance(r, dict) else Relationship() for r in relationships_data],
-            accounts=[Account(**a) if isinstance(a, dict) else Account() for a in accounts_data],
+            relationships=[Relationship(
+                **r) if isinstance(r, dict) else Relationship() for r in relationships_data],
+            accounts=[Account(**a) if isinstance(a, dict)
+                      else Account() for a in accounts_data],
             document_type=row.get("document_type"),
-            risk_score=row.get("risk_score"),
+            risk_score=risk_score_val,
             created_at=str(row.get("created_at", "")),
             raw_data=row
         )
-    
+
+    def apply_questionnaire_responses(self, responses: Dict[str, Any]) -> "ClientProfile":
+        """Merge questionnaire responses into this profile for consistent reporting.
+
+        This reduces mismatches like nationality being answered in the questionnaire
+        but remaining 'Unknown' in the report.
+        """
+        if not isinstance(responses, dict):
+            return self
+
+        # Preserve responses for debugging/audit without showing raw JSON in the UI
+        try:
+            self.raw_data = dict(self.raw_data or {})
+            self.raw_data["questionnaire_responses"] = responses
+        except Exception:
+            pass
+
+        def truthy(v: Any) -> bool:
+            if v is None:
+                return False
+            if isinstance(v, str):
+                return bool(v.strip())
+            if isinstance(v, (list, dict)):
+                return bool(v)
+            return True
+
+        def find_by_substring(substrs: list[str]) -> Optional[Any]:
+            for k, v in responses.items():
+                lk = str(k).lower()
+                if any(s in lk for s in substrs) and truthy(v):
+                    return v
+            return None
+
+        # Identity enrichment
+        nationality = responses.get("nationality") or find_by_substring([
+            "nationality", "citizenship"])
+        if truthy(nationality):
+            self.identity.nationality = str(nationality)
+
+        residence = responses.get("residence_country") or responses.get("country_of_residence") or find_by_substring([
+            "residence", "country_of_residence", "resident"
+        ])
+        if truthy(residence):
+            self.identity.residence_country = str(residence)
+
+        dob = responses.get("dob") or responses.get(
+            "date_of_birth") or find_by_substring(["dob", "date_of_birth", "birth"])
+        if truthy(dob):
+            self.identity.dob = str(dob)
+
+        id_type = responses.get("id_type") or responses.get("identification_type") or find_by_substring([
+            "id_type", "document_type", "identification_type"
+        ])
+        if truthy(id_type):
+            self.identity.id_type = str(id_type)
+
+        id_number = responses.get("id_number") or responses.get("document_number") or find_by_substring([
+            "id_number", "document_number", "identification_number"
+        ])
+        if truthy(id_number):
+            self.identity.id_number = str(id_number)
+
+        full_name = responses.get("full_name") or responses.get("customer_name") or find_by_substring([
+            "full_name", "customer_name", "name"
+        ])
+        if truthy(full_name):
+            self.identity.full_name = str(full_name)
+            # Keep top-level customer_name aligned when the answer is clearly a name
+            if not self.customer_name or self.customer_name.strip() == "":
+                self.customer_name = str(full_name)
+
+        return self
+
     def get_summary_for_agent(self) -> str:
         """
         Generate a comprehensive text summary for the AI agent to analyze.
@@ -332,7 +498,7 @@ class ClientProfile(BaseModel):
             f"ECDD Segment: {self.identity.risk_segment or 'Unknown'}",
             f"Existing Customer: {'Yes' if self.identity.is_etb else 'No/Unknown'}",
         ]
-        
+
         # Extract client type indicators from raw_data
         raw = self.raw_data or {}
         aml_json = raw.get("aml_json", {})
@@ -342,13 +508,17 @@ class ClientProfile(BaseModel):
                 aml_json = json.loads(aml_json)
             except:
                 aml_json = {}
-        
+
         # Look for occupation/employment info in various locations
-        occupation_keys = ["occupation", "profession", "job_title", "employment_type", "client_type"]
-        employment_keys = ["employer", "employer_name", "company", "company_name", "business_name"]
-        income_keys = ["source_of_income", "income_source", "sow", "source_of_wealth"]
-        status_keys = ["employment_status", "status", "client_category", "customer_type"]
-        
+        occupation_keys = ["occupation", "profession",
+                           "job_title", "employment_type", "client_type"]
+        employment_keys = ["employer", "employer_name",
+                           "company", "company_name", "business_name"]
+        income_keys = ["source_of_income",
+                       "income_source", "sow", "source_of_wealth"]
+        status_keys = ["employment_status", "status",
+                       "client_category", "customer_type"]
+
         def find_value(keys, data):
             for key in keys:
                 if key in data:
@@ -357,58 +527,59 @@ class ClientProfile(BaseModel):
                 if isinstance(aml_json, dict) and key in aml_json:
                     return aml_json[key]
             return None
-        
+
         # Client type / occupation
         occupation = find_value(occupation_keys, raw)
         if occupation:
             lines.append(f"Occupation/Type: {occupation}")
-        
+
         # Employment / company
         employer = find_value(employment_keys, raw)
         if employer:
             lines.append(f"Employer/Business: {employer}")
-        
+
         # Employment status (helps distinguish employee vs owner)
         status = find_value(status_keys, raw)
         if status:
             lines.append(f"Status: {status}")
-        
+
         # Source of income (critical for client type)
         income = find_value(income_keys, raw)
         if income:
             lines.append(f"Income Source: {income}")
-        
+
         # Look for business owner indicators
-        business_indicators = ["owns_business", "is_business_owner", "business_ownership", "shareholding"]
+        business_indicators = [
+            "owns_business", "is_business_owner", "business_ownership", "shareholding"]
         for key in business_indicators:
             if key in raw or (isinstance(aml_json, dict) and key in aml_json):
                 val = raw.get(key) or aml_json.get(key)
                 if val:
                     lines.append(f"Business Owner: Yes")
                     break
-        
+
         # PEP status
         if self.pep_status:
             pep = self.pep_status[0]
-            lines.append(f"PEP Status: {'Yes' if pep.is_pep else 'No'}" + 
-                        (f" - {pep.pep_type}" if pep.pep_type else ""))
-        
+            lines.append(f"PEP Status: {'Yes' if pep.is_pep else 'No'}" +
+                         (f" - {pep.pep_type}" if pep.pep_type else ""))
+
         # Screening results summary
         if self.sanctions:
             lines.append(f"Sanctions Hits: {len(self.sanctions)}")
-        
+
         if self.adverse_news:
             lines.append(f"Adverse News Items: {len(self.adverse_news)}")
-        
+
         if self.watchlist_hits:
             lines.append(f"Watchlist Hits: {len(self.watchlist_hits)}")
-        
+
         if self.relationships:
             lines.append(f"Related Parties: {len(self.relationships)}")
-        
+
         if self.accounts:
             lines.append(f"Accounts: {len(self.accounts)}")
-        
+
         return "\n".join(lines)
 
 
@@ -444,11 +615,12 @@ class DynamicQuestionnaire(BaseModel):
     questionnaire_id: str
     customer_id: str
     customer_name: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat())
     sections: List[QuestionSection] = Field(default_factory=list)
     client_type: str = ""
     profile_summary: Dict[str, Any] = Field(default_factory=dict)
-    
+
     def get_total_questions(self) -> int:
         return sum(len(s.questions) for s in self.sections)
 
@@ -470,7 +642,7 @@ class ComplianceFlags(BaseModel):
     source_of_wealth_concerns: bool = False
     source_of_funds_concerns: bool = False
     complex_ownership: bool = False
-    
+
     class Config:
         extra = "allow"
 
@@ -481,6 +653,7 @@ class AssessmentFactor(BaseModel):
     level: ECDDLevel = ECDDLevel.MEDIUM
     score: float = 0.0
     justification: str = ""
+
 
 # Alias for backward compatibility
 RiskFactor = AssessmentFactor
@@ -494,27 +667,28 @@ class ECDDAssessment(BaseModel):
     # Client classification
     client_type: str = ""
     client_category: str = ""  # Individual, Corporate, Trust, etc.
-    
+
     # ECDD Assessment rating
     overall_ecdd_rating: ECDDLevel = ECDDLevel.MEDIUM
     ecdd_score: float = 0.0
     assessment_factors: List[AssessmentFactor] = Field(default_factory=list)
-    
+
     # Source of wealth/funds
     source_of_wealth: Dict[str, Any] = Field(default_factory=dict)
     source_of_funds: Dict[str, Any] = Field(default_factory=dict)
-    
+
     # Compliance
     compliance_flags: ComplianceFlags = Field(default_factory=ComplianceFlags)
-    
+
     # Recommendations
     recommendations: List[str] = Field(default_factory=list)
     required_actions: List[str] = Field(default_factory=list)
-    
+
     # Metadata
     assessed_by: str = "ECDD Agent"
-    assessed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    
+    assessed_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
     # Raw report text for PDF generation
     report_text: str = ""
 
@@ -535,20 +709,21 @@ class DocumentChecklist(BaseModel):
     Designed for Delta Table storage with nested JSON.
     """
     identity_documents: List[DocumentItem] = Field(default_factory=list)
-    source_of_wealth_documents: List[DocumentItem] = Field(default_factory=list)
+    source_of_wealth_documents: List[DocumentItem] = Field(
+        default_factory=list)
     source_of_funds_documents: List[DocumentItem] = Field(default_factory=list)
     compliance_documents: List[DocumentItem] = Field(default_factory=list)
     additional_documents: List[DocumentItem] = Field(default_factory=list)
-    
+
     # Raw text for PDF generation
     checklist_text: str = ""
-    
+
     def get_all_required(self) -> List[DocumentItem]:
         """Get all required documents across categories."""
         all_docs = (
-            self.identity_documents + 
-            self.source_of_wealth_documents + 
-            self.source_of_funds_documents + 
+            self.identity_documents +
+            self.source_of_wealth_documents +
+            self.source_of_funds_documents +
             self.compliance_documents +
             self.additional_documents
         )
@@ -565,30 +740,32 @@ class QuestionnaireSession(BaseModel):
     customer_id: str
     customer_name: str
     status: SessionStatus = SessionStatus.PENDING
-    
+
     # Agent threading
     questionnaire_thread_id: Optional[str] = None
     reporter_thread_id: Optional[str] = None
-    
+
     # Timestamps
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
     # Data
     client_profile: Dict[str, Any] = Field(default_factory=dict)
     questionnaire: Optional[DynamicQuestionnaire] = None
     responses: Dict[str, Any] = Field(default_factory=dict)
-    
+
     # Results
     ecdd_assessment: Optional[ECDDAssessment] = None
     document_checklist: Optional[DocumentChecklist] = None
-    
+
     # Review
     review_decision: Optional[str] = None
     review_notes: Optional[str] = None
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[str] = None
-    
+
     # Follow-up
     is_followup: bool = False
     parent_session_id: Optional[str] = None
@@ -602,23 +779,26 @@ class ECDDOutput(BaseModel):
     session_id: str
     customer_id: str
     customer_name: str
-    
+
     # Structured outputs (stored as nested JSON columns)
     compliance_flags: ComplianceFlags = Field(default_factory=ComplianceFlags)
     ecdd_assessment: ECDDAssessment = Field(default_factory=ECDDAssessment)
-    document_checklist: DocumentChecklist = Field(default_factory=DocumentChecklist)
+    document_checklist: DocumentChecklist = Field(
+        default_factory=DocumentChecklist)
     questionnaire_responses: Dict[str, Any] = Field(default_factory=dict)
-    
+
     # Status and timestamps
     status: str = "completed"
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
     # Review information
     review_decision: Optional[str] = None
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[str] = None
-    
+
     def to_delta_row(self) -> Dict[str, Any]:
         """
         Convert to dict suitable for Delta Table insertion.
@@ -627,11 +807,11 @@ class ECDDOutput(BaseModel):
         # Create assessment JSON without report_text
         assessment_dict = self.ecdd_assessment.model_dump()
         assessment_dict.pop("report_text", None)
-        
+
         # Create checklist JSON without checklist_text
         checklist_dict = self.document_checklist.model_dump()
         checklist_dict.pop("checklist_text", None)
-        
+
         return {
             "session_id": self.session_id,
             "customer_id": self.customer_id,
@@ -650,4 +830,3 @@ class ECDDOutput(BaseModel):
 
 
 # Need to import json for the to_delta_row method
-import json
