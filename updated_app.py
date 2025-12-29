@@ -49,7 +49,12 @@ CONFIG = {
         "Bank Customer Form": "dbx_main.ca_bronze.customer_forms",
         "Bank Statement": "dbx_main.ca_bronze.bank_statements",
         "Self Declaration Form": "dbx_main.ca_bronze.self_declarations"
-    }
+    },
+
+    # Databricks CLI auth config (used when USE_DATABRICKS_CLI=True)
+    # These can be set via environment variables: DATABRICKS_HOST, DATABRICKS_HTTP_PATH
+    "databricks_host": os.environ.get("DATABRICKS_HOST", ""),
+    "http_path": os.environ.get("DATABRICKS_HTTP_PATH", ""),
 }
 
 INTERNAL_WATCHLIST_TABLE = "dbx_main.ca_bronze.cf_watchlist"
@@ -472,8 +477,58 @@ class ECDDReport:
 # ============================================================
 # READ AML TABLE
 # ============================================================
-def execute_sql(statement: str) -> dict:
-    """Execute SQL statement against Databricks."""
+
+# Toggle: Set to True to use Databricks CLI auth, False for REST API
+USE_DATABRICKS_CLI = True
+
+# CLI-based connection (uses `databricks auth login`)
+_db_connection = None
+
+
+def get_databricks_connection():
+    """
+    Get or create a Databricks SQL connection using CLI authentication.
+    Requires: databricks-sql-connector, databricks auth login
+    """
+    global _db_connection
+    if _db_connection is None:
+        try:
+            from databricks import sql
+
+            # Uses CLI token automatically via DefaultCredentialProvider
+            _db_connection = sql.connect(
+                server_hostname=CONFIG.get(
+                    "databricks_host", os.environ.get("DATABRICKS_HOST", "")),
+                http_path=CONFIG.get("http_path", os.environ.get(
+                    "DATABRICKS_HTTP_PATH", "")),
+            )
+        except ImportError:
+            raise ImportError(
+                "databricks-sql-connector not installed. Run: pip install databricks-sql-connector")
+        except Exception as e:
+            raise Exception(f"Failed to connect via CLI auth: {e}")
+    return _db_connection
+
+
+def execute_sql_cli(statement: str) -> list:
+    """
+    Execute SQL using Databricks CLI authentication (databricks-sql-connector).
+    Returns list of dicts with column names as keys.
+    """
+    conn = get_databricks_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(statement)
+        columns = [desc[0]
+                   for desc in cursor.description] if cursor.description else []
+        rows = cursor.fetchall()
+        return [dict(zip(columns, row)) for row in rows]
+    finally:
+        cursor.close()
+
+
+def execute_sql_rest(statement: str) -> dict:
+    """Execute SQL statement against Databricks using REST API (PAT token)."""
     r = requests.post(
         f"{CONFIG['workspace_url']}/api/2.0/sql/statements",
         headers={
@@ -488,6 +543,28 @@ def execute_sql(statement: str) -> dict:
     )
     r.raise_for_status()
     return r.json()
+
+
+def execute_sql(statement: str) -> dict:
+    """
+    Execute SQL statement against Databricks.
+    Uses CLI auth if USE_DATABRICKS_CLI=True, otherwise REST API.
+    """
+    if USE_DATABRICKS_CLI:
+        # CLI mode returns list of dicts - wrap in result format for compatibility
+        rows = execute_sql_cli(statement)
+        if not rows:
+            return {"result": {"data_array": [], "schema": {"columns": []}}}
+        columns = list(rows[0].keys()) if rows else []
+        data_array = [[row.get(c) for c in columns] for row in rows]
+        return {
+            "result": {
+                "data_array": data_array,
+                "schema": {"columns": [{"name": c} for c in columns]}
+            }
+        }
+    else:
+        return execute_sql_rest(statement)
 
 
 @st.cache_data(ttl=300)
