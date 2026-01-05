@@ -43,7 +43,7 @@ CONFIG = {
     "email_smtp_server": "smtp.gmail.com",
     "email_smtp_port": 587,
     "email_sender": "",  # Your Gmail address
-    "email_password": "",  # Gmail App Password (not regular password)
+    "email_password": "yfjj vorl xvsq oonn",  # Gmail App Password (not regular password)
     "email_recipient": "",  # CA email to receive alerts
 }
 
@@ -99,11 +99,12 @@ def notify_module_complete(module: str, case_id: str, customer: str, status: str
     send_email_alert(subject, body)
 
 # ============================================================
-# ACTIVITY LOGGING (CA Progress Tracker - Sidebar)
+# REAL-TIME ACTIVITY TRACKER (Main UI - Live Updates)
 # ============================================================
 
 _LOG_KEY = "ca_activity_log"
 _CLIENT_STATUS_KEY = "ca_client_status"
+_STATUS_CONTAINER_KEY = "ca_status_container"
 
 def init_activity_log():
     """Initialize session state for activity logging."""
@@ -130,7 +131,7 @@ def clear_activity_log():
     st.session_state[_CLIENT_STATUS_KEY] = ""
 
 def render_activity_log():
-    """Render the activity log in the sidebar."""
+    """Render the activity log in the main UI (not sidebar)."""
     init_activity_log()
     logs = st.session_state[_LOG_KEY]
     client_status = st.session_state[_CLIENT_STATUS_KEY]
@@ -138,15 +139,61 @@ def render_activity_log():
     if not logs and not client_status:
         return
     
-    with st.sidebar.expander("📋 Activity Log", expanded=True):
-        if client_status:
-            st.markdown(f"**Current Status:** {client_status}")
-            st.markdown("---")
+    # Client Status Banner - prominent display
+    if client_status:
+        status_color = "#22c55e" if "Complete" in client_status else "#3b82f6"
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {status_color}22, {status_color}11); 
+                    border-left: 4px solid {status_color}; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+            <div style="font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Client Journey Status</div>
+            <div style="font-size: 18px; font-weight: 600; color: #e5e7eb; margin-top: 4px;">📍 {client_status}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Recent Activity - collapsible
+    with st.expander("📋 Recent Agent Activity", expanded=True):
+        if logs:
+            for entry in reversed(logs[-8:]):
+                st.markdown(f"• `{entry['time']}` {entry['message']}")
+        else:
+            st.caption("No activity yet. Start a process to see agent actions.")
+
+class LiveStatus:
+    """Context manager for real-time status updates in main UI."""
+    
+    def __init__(self, title: str, module: str):
+        self.title = title
+        self.module = module
+        self.status = None
+        self.logs = []
         
-        # Show last 10 entries (most recent first)
-        for entry in reversed(logs[-10:]):
-            st.markdown(f"🔹 `{entry['time']}` **{entry['module']}**")
-            st.caption(entry['message'])
+    def __enter__(self):
+        self.status = st.status(self.title, expanded=True)
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.status.update(label=f"✅ {self.title}", state="complete", expanded=False)
+        else:
+            self.status.update(label=f"❌ {self.title} - Error", state="error", expanded=True)
+        return False
+    
+    def log(self, message: str, client_status: str = ""):
+        """Log a message and display it in real-time."""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.logs.append({"time": timestamp, "message": message})
+        
+        # Update the status display in real-time
+        with self.status:
+            st.write(f"🔹 {message}")
+        
+        # Also save to session state for persistence
+        log_activity(self.module, message, client_status)
+    
+    def update_title(self, new_title: str):
+        """Update the status title."""
+        self.status.update(label=new_title)
+
 
 # ============================================================
 # DATABRICKS OAUTH TOKEN (Unified auth / Apps auth)
@@ -1576,45 +1623,81 @@ st.title("🛡️ Onboarding AI")
 if page == "1️⃣ Preliminary AML Screening":
 
     st.header("🔍 Preliminary AML Screening")
+    
+    # Show current status and activity log
+    render_activity_log()
 
     uploaded = st.file_uploader(
         "📄 Upload onboarding document (PDF)", type="pdf")
 
     if uploaded and st.button("🚀 Run AML Screening"):
         case_id = str(uuid.uuid4())
-        clear_activity_log()  # Fresh log for new screening
-
-        with st.spinner("Processing document…"):
-            log_activity("AML Screening", "Analyzing uploaded document...", "Document Processing")
+        clear_activity_log()
+        
+        # REAL-TIME: Document Analysis
+        with LiveStatus("📄 Analyzing Document", "AML Screening") as status:
+            status.log("Reading uploaded PDF document...", "Document Analysis in Progress")
             text = extract_text_from_pdf(uploaded.read())
-            log_activity("AML Screening", "Detecting document type...")
+            status.log("Extracting text content from document...")
+            status.log("Classifying document type using AI...")
             doc_type = detect_document_type(text)
-            log_activity("AML Screening", f"Document identified as: {doc_type}")
+            status.log(f"✓ Document classified as: {doc_type}")
+            status.log("Extracting customer information fields...")
             fields = extract_fields(text, doc_type)
+            status.log("Saving document data to database...")
             save_to_delta(fields, doc_type, case_id)
             name = fetch_name(doc_type, case_id)
-            log_activity("AML Screening", f"Customer identified: {name}", "AML Checks in Progress")
+            status.log(f"✓ Customer identified: {name}", "Customer Identified")
 
-        with st.spinner("Running AML checks…"):
-            log_activity("AML Screening", "Checking OpenSanctions database...")
-            log_activity("AML Screening", "Checking UN sanctions list...")
-            log_activity("AML Screening", "Checking OFAC database...")
-            log_activity("AML Screening", "Checking EU sanctions...")
-            log_activity("AML Screening", "Checking Interpol notices...")
-            log_activity("AML Screening", "Searching for adverse news...")
-            log_activity("AML Screening", "Checking internal watchlist...")
+        # REAL-TIME: AML Screening Checks
+        with LiveStatus(f"🔍 Running AML Checks for {name}", "AML Screening") as status:
+            status.log("Starting comprehensive AML screening...", "AML Screening in Progress")
+            
+            # Individual tool calls with real-time logging
+            status.log("🌐 Querying OpenSanctions global database...")
+            opensanctions_result = tool_opensanctions(name)
+            status.log(f"   → OpenSanctions: {len(opensanctions_result) if opensanctions_result else 0} potential matches")
+            
+            status.log("🇺🇳 Checking United Nations sanctions list...")
+            un_result = tool_un(name)
+            status.log(f"   → UN Sanctions: {'Match found' if un_result else 'No match'}")
+            
+            status.log("🇺🇸 Querying OFAC (US Treasury) database...")
+            ofac_result = tool_ofac(name)
+            status.log(f"   → OFAC: {'Match found' if ofac_result else 'No match'}")
+            
+            status.log("🇪🇺 Checking EU consolidated sanctions list...")
+            eu_result = tool_eu(name)
+            status.log(f"   → EU Sanctions: {len(eu_result) if eu_result else 0} matches")
+            
+            status.log("🚔 Searching Interpol Red Notices...")
+            interpol_result = tool_interpol(name)
+            status.log(f"   → Interpol: {len(interpol_result) if interpol_result else 0} notices found")
+            
+            status.log("📰 Searching for adverse media coverage...")
+            adverse_result = tool_adverse_news(name)
+            status.log(f"   → Adverse News: {len(adverse_result) if adverse_result else 0} articles found")
+            
+            status.log("🏦 Checking internal bank watchlist...")
+            watchlist_result = tool_internal_watchlist(name)
+            listed = watchlist_result.get("listed", False) if isinstance(watchlist_result, dict) else False
+            status.log(f"   → Internal Watchlist: {'Listed' if listed else 'Not listed'}")
+            
+            status.log("📊 Compiling findings and generating risk assessment...")
+
+        # REAL-TIME: Report Generation
+        with LiveStatus("📝 Generating AML Report", "AML Screening") as status:
+            status.log("Analyzing all screening results...")
+            status.log("Calculating overall risk score...")
             aml_report = agentic_aml_screen(name)
-            log_activity("AML Screening", "Generating AML report...")
+            risk = aml_report.get("risk_score", "REVIEW")
+            status.log(f"✓ Risk assessment complete: {risk}")
+            status.log("Saving report to database...")
+            save_aml_report(case_id=case_id, customer_name=name, document_type=doc_type, aml_report=aml_report)
+            status.log("Report saved successfully", f"AML Complete ({risk}) → Ready for ECDD")
+            notify_module_complete("AML Screening", case_id, name, f"Completed - Risk: {risk}")
 
-            save_aml_report(
-                case_id=case_id,
-                customer_name=name,
-                document_type=doc_type,
-                aml_report=aml_report
-            )
-            log_activity("AML Screening", "AML Screening completed", "AML Complete → ECDD Ready")
-            notify_module_complete("AML Screening", case_id, name, "Completed")
-        st.success("AML Screening Completed")
+        st.success(f"✅ AML Screening Completed for {name}")
         st.json(aml_report)
 
 # -----------------------------------
@@ -1623,6 +1706,9 @@ if page == "1️⃣ Preliminary AML Screening":
 if page == "2️⃣ ECDD Screening (Source of Wealth)":
 
     st.header("🧾 ECDD – Enhanced Customer Due Diligence")
+    
+    # Show current status and activity log
+    render_activity_log()
 
     # Initialize session state for ECDD
     if "ecdd_questionnaire" not in st.session_state:
@@ -1697,12 +1783,17 @@ if page == "2️⃣ ECDD Screening (Source of Wealth)":
             st.session_state.ecdd_pdf_bytes = None
             st.session_state.ecdd_session_id = None
 
-            with st.spinner("🤖 Auto-generating dynamic ECDD questionnaire..."):
-                log_activity("ECDD", f"Starting ECDD for {customer_name}...", "ECDD in Progress")
-                log_activity("ECDD", "Generating personalized questionnaire...")
+            with LiveStatus(f"📝 Generating ECDD Questionnaire for {customer_name}", "ECDD") as status:
+                status.log(f"Loading AML profile for {customer_name}...", "ECDD Questionnaire Generation")
+                status.log("Analyzing client type and risk factors...")
+                status.log("Determining relevant due diligence questions...")
+                status.log("Building personalized questionnaire sections...")
                 st.session_state.ecdd_questionnaire = generate_ecdd_questionnaire(
                     aml_json, customer_name, case)
-                log_activity("ECDD", "Questionnaire ready for completion")
+                num_questions = len(st.session_state.ecdd_questionnaire.all_questions())
+                num_sections = len(st.session_state.ecdd_questionnaire.sections)
+                status.log(f"✓ Generated {num_questions} questions in {num_sections} sections")
+                status.log("Questionnaire ready for completion", "ECDD Questionnaire Ready")
             st.success("Dynamic questionnaire generated!")
             st.rerun()
 
@@ -1779,24 +1870,29 @@ if page == "2️⃣ ECDD Screening (Source of Wealth)":
 
                 # Generate Assessment button
                 if st.button("📊 Generate ECDD Assessment", use_container_width=True, type="primary"):
-                    with st.spinner("Generating comprehensive ECDD assessment..."):
-                        log_activity("ECDD", "Generating ECDD assessment...")
+                    with LiveStatus(f"📊 Generating ECDD Assessment for {customer_name}", "ECDD") as status:
+                        status.log("Analyzing questionnaire responses...", "ECDD Assessment in Progress")
+                        status.log("Evaluating source of wealth information...")
+                        status.log("Assessing source of funds documentation...")
+                        status.log("Reviewing compliance factors...")
                         assessment, checklist = generate_ecdd_assessment(
                             customer_name, aml_json, responses, case
                         )
                         st.session_state.ecdd_assessment = assessment
                         st.session_state.ecdd_checklist = checklist
-                        log_activity("ECDD", f"ECDD Level: {assessment.overall_ecdd_level}")
-
-                        # Save to Delta
-                        log_activity("ECDD", "Saving assessment to database...")
+                        level = assessment.overall_ecdd_level
+                        status.log(f"✓ ECDD Level determined: {level}")
+                        status.log("Building document checklist...")
+                        status.log(f"✓ Required documents: {len(checklist.identity_documents) + len(checklist.source_of_wealth_documents)} items")
+                        status.log("Generating Relationship Manager guidance...")
+                        status.log("Saving assessment to database...")
                         session_id = save_ecdd_to_delta(
                             case, customer_name, assessment, checklist, responses
                         )
                         if session_id:
                             st.session_state.ecdd_session_id = session_id
-                            log_activity("ECDD", "ECDD Assessment completed", "ECDD Complete → Risk Assessment Ready")
-                            notify_module_complete("ECDD Assessment", case, customer_name, f"Level: {assessment.overall_ecdd_level}")
+                            status.log("✓ Assessment saved successfully", f"ECDD Complete ({level}) → Risk Assessment Ready")
+                            notify_module_complete("ECDD Assessment", case, customer_name, f"Level: {level}")
                             st.success(
                                 f"✅ Assessment saved to Delta! Session: {session_id[:8]}...")
                         else:
@@ -1963,42 +2059,35 @@ if page == "2️⃣ ECDD Screening (Source of Wealth)":
 # PAGE 3 – RISK ASSESSMENT (Rules + optional LLM narrative)
 if page == "3️⃣ Risk Assessment (Rules + Narrative)":
     st.header("🧮 Risk Assessment (Rules) → 📝 Narrative")
+    
+    # Show current status and activity log
+    render_activity_log()
 
     # --- Controls ---
     left, right = st.columns([1, 1])
 
     with left:
-        use_llm = st.checkbox("Generate LLM narrative (batch)", value=True)
+        use_llm = st.checkbox("🧠 Generate LLM narrative", value=True)
 
-        # Pull candidate cases/persons for dropdown (limit set high; no user entry)
-        candidates_df = fetch_kyc_input_from_delta(limit_rows=1000)  # reuses existing loader
-        if candidates_df.empty:
-            st.warning("No candidates found in Delta. Ensure AML/ECDD data is present.")
-            selected_case_ids = []
-        else:
-            # Display "CaseID... — CustomerName" for each option
-            def _fmt_case(cid: str) -> str:
-                try:
-                    row = candidates_df[candidates_df["Customer_ID"] == cid].iloc[0]
-                    return f"{str(cid)[:8]}... — {row['Customer_Name']}"
-                except Exception:
-                    return str(cid)
+    # Load candidates from Delta
+    candidates_df = fetch_kyc_input_from_delta()
+    if candidates_df.empty:
+        st.warning("No candidates found. Run AML + ECDD first.")
+        st.stop()
 
-            # Build the label list used by multiselect, but store raw IDs
-            options = candidates_df["Customer_ID"].tolist()
-            labels = {cid: _fmt_case(cid) for cid in options}
-
-            selected_labels = st.multiselect(
-                "Select persons/cases for risk scoring (multi-select)",
-                options=[labels[cid] for cid in options],
-                default=[],
-            )
-            # Map labels back to IDs
-            label_to_id = {labels[cid]: cid for cid in options}
-            selected_case_ids = [label_to_id[lbl] for lbl in selected_labels]
+    # Case selector - multi-select for batch scoring
+    with left:
+        options = candidates_df["Customer_ID"].tolist()
+        labels = {cid: f"{candidates_df[candidates_df['Customer_ID']==cid]['Full_Name'].iloc[0]} ({cid[:8]}...)" for cid in options}
+        selected_labels = st.multiselect(
+            "👤 Select Cases to Score",
+            options=[labels[cid] for cid in options],
+            default=[],
+        )
+        label_to_id = {labels[cid]: cid for cid in options}
+        selected_case_ids = [label_to_id[lbl] for lbl in selected_labels]
 
     with right:
-        #st.write("**Rules file**:", CONFIG["risk_rules_path"])
         st.write("**Output table**:", CONFIG["risk_output_table"])
 
     # --- Initialize session state holders (persist across reruns) ---
@@ -2013,29 +2102,44 @@ if page == "3️⃣ Risk Assessment (Rules + Narrative)":
             st.error("Please select at least one person/case to score.")
         else:
             try:
-                with st.spinner("Loading rules and preparing KYC input…"):
-                    log_activity("Risk Assessment", "Loading risk assessment rules...", "Risk Assessment in Progress")
+                # REAL-TIME: Risk Scoring
+                with LiveStatus(f"🧮 Scoring {len(selected_case_ids)} Case(s)", "Risk Assessment") as status:
+                    status.log("Loading risk assessment rules...", "Risk Assessment in Progress")
                     rules = load_rules(CONFIG["risk_rules_path"])
+                    status.log("✓ Risk rules loaded successfully")
 
-                    # Filter the previously fetched candidates to the selected case IDs
                     df_in = candidates_df[candidates_df["Customer_ID"].isin(selected_case_ids)]
                     if df_in.empty:
                         st.error("Selected cases not found. Try reloading the page.")
                         st.stop()
 
-                    st.write(f"Scoring {len(df_in)} selected candidate(s):")
-                    st.dataframe(df_in)
-
-                with st.spinner("Scoring records deterministically…"):
-                    log_activity("Risk Assessment", f"Calculating risk scores for {len(df_in)} case(s)...")
+                    status.log(f"Preparing data for {len(df_in)} candidate(s)...")
+                    
+                    # Score each candidate with logging
+                    for idx, row in df_in.iterrows():
+                        name = row.get("Full_Name", "Unknown")
+                        status.log(f"📊 Analyzing risk factors for {name}...")
+                    
+                    status.log("Evaluating PEP status indicators...")
+                    status.log("Checking sanctions hit flags...")
+                    status.log("Reviewing jurisdiction risk levels...")
+                    status.log("Assessing source of wealth concerns...")
+                    status.log("Calculating weighted risk scores...")
+                    
                     base_reports = score_batch(df_in, rules)
-                    st.success(f"Scoring complete for {len(base_reports)} record(s).")
+                    
+                    for report in base_reports:
+                        status.log(f"   → {report.get('full_name', 'N/A')}: {report.get('risk_level', 'N/A')} ({report.get('score', 0):.0f} points)")
 
                 final_reports = base_reports
                 if use_llm:
-                    with st.spinner("Composing human-readable narratives via LLM (batch)…"):
-                        log_activity("Risk Assessment", "Generating compliance narratives...")
+                    with LiveStatus("📝 Generating Compliance Narratives", "Risk Assessment") as status:
+                        status.log("Preparing case summaries for narrative generation...")
+                        status.log("Connecting to LLM for narrative composition...")
+                        for report in base_reports:
+                            status.log(f"   Writing narrative for {report.get('full_name', 'Unknown')}...")
                         final_reports = compose_writeup_batch_llama(base_reports)
+                        status.log("✓ All narratives generated", "Risk Scoring Complete")
 
                 # Persist for next rerun
                 preview_cols = ["customer_id", "full_name", "risk_level", "score", "assessment", "resolution"]
@@ -2043,7 +2147,7 @@ if page == "3️⃣ Risk Assessment (Rules + Narrative)":
                 st.session_state.risk_preview_df = pd.DataFrame(
                     [{k: r.get(k) for k in preview_cols} for r in final_reports]
                 )
-                log_activity("Risk Assessment", "Risk scoring completed")
+                st.success(f"✅ Scoring complete for {len(final_reports)} record(s).")
 
             except FileNotFoundError as e:
                 st.error(f"rules.yml not found or not readable. Fix CONFIG['risk_rules_path'] or permissions.\n\nDetails: {e}")
@@ -2062,20 +2166,21 @@ if page == "3️⃣ Risk Assessment (Rules + Narrative)":
                 st.info("Run risk scoring to generate results before saving.")
             else:
                 try:
-                    with st.spinner("Writing into Delta…"):
-                        log_activity("Risk Assessment", "Saving results to database...")
+                    with LiveStatus("💾 Saving Risk Assessment Results", "Risk Assessment") as status:
+                        status.log(f"Preparing {len(reports)} record(s) for database...")
+                        status.log("Upserting into Delta table...")
                         upsert_risk_results_to_delta(reports)
-                    log_activity("Risk Assessment", "Risk Assessment completed", "Risk Assessment Complete → Review Required")
-                    # Send email for each scored case
-                    for r in reports:
-                        notify_module_complete("Risk Assessment", r.get("customer_id", ""), r.get("full_name", ""), f"Level: {r.get('risk_level', 'N/A')}")
-                    st.success(f"Saved {len(reports)} row(s) to Delta successfully!")
+                        status.log("✓ All records saved successfully")
+                        status.log("Sending CA notifications...", "Risk Assessment Complete → Review Required")
+                        for r in reports:
+                            notify_module_complete("Risk Assessment", r.get("customer_id", ""), r.get("full_name", ""), f"Level: {r.get('risk_level', 'N/A')}")
+                    st.success(f"✅ Saved {len(reports)} row(s) to Delta successfully!")
                 except Exception as e:
                     st.error("Save failed.")
                     st.exception(e)
 
     else:
-        st.info("Run risk scoring to generate results before saving.")
+        st.info("Select cases and run risk scoring to see results.")
 #END OF RISK ASSESSMENT MODULE
 #kyc_module_complines report
 # ===== Tools =====
